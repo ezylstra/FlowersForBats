@@ -2,3 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+
+# AGFD data
+data/agfd/*
+!data/agfd/.gitkeep
