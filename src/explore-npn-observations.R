@@ -153,29 +153,33 @@ dat <- orig %>%
     group_by(site_id, site_name, group, person_id, spp, ind_id, patch, 
              obsdate, yr, pheno_id, pheno_name) %>%
     summarize(.groups = "keep",
-              phenos = length(pheno_id)) %>%
+              nobs = length(pheno_id)) %>%
     data.frame()
   
-  count(obsp, phenos) # 951 combos with phenos = 2, 21 with phenos = 3
-  filter(obsp, phenos == 3)
+  count(obsp, nobs) # 951 combos with phenos = 2, 21 with phenos = 3
+  filter(obsp, nobs == 3)
   filter(dat, ind_id == 74154 & obsdate == "2014-11-17")
   # Are these just duplicate entries/observations?
   
-  # Removing what are essentially duplicate entries/observations...
+  # Removing what are essentially duplicate entries/observations and removing
+  # the early phenophases with "(1 location)".
   dat <- dat %>%
+    filter(!grepl("(1 location)", pheno_name)) %>%
     distinct(ind_id, obsdate, pheno_id, pheno_status, intensity, 
              .keep_all = TRUE)
   
   obsp <- dat %>%
-    filter(!grepl("(1 location)", pheno_name)) %>%
     group_by(site_id, site_name, group, person_id, spp, ind_id, patch, 
              obsdate, yr, pheno_id, pheno_name) %>%
     summarize(.groups = "keep",
-              phenos = length(pheno_id)) %>%
+              nobs = length(pheno_id)) %>%
     data.frame()
   
-  count(obsp, phenos) # Now just 40 combos with phenos = 2
-  filter(obsp, phenos > 1)
+  count(obsp, nobs) 
+    # Now just 40 instances where there are two records of the same individual
+    # plant/patch and phenophase on the same date by the same person.
+    
+  filter(obsp, nobs > 1)
   filter(dat, ind_id == 172139 & obsdate == "2019-08-09") 
     # In this case, 2 entries for each ind/date/phase, pheno_status = 0 and 1
   filter(dat, ind_id == 200993 & obsdate == "2020-09-13") 
@@ -183,4 +187,30 @@ dat <- orig %>%
   
   # TODO: make sure that we've removed all duplicates and gotten rid of
   # questionable entries (eg, pheno_status = -1?)
+  
+  # Get rid of rows in dat that are observations of the same ind plant/patch 
+  # by the same person on the same day. Remove those with lower pheno_id and 
+  # intensity value
+  obsp <- obsp %>%
+    arrange(site_id, person_id, spp, ind_id, obsdate, pheno_id) %>%
+    mutate(obsnum = row_number())
+  
+  dat <- dat %>%
+    arrange(site_id, person_id, spp, ind_id, obsdate, pheno_id, 
+            desc(pheno_status), intensity) %>%
+    left_join(select(obsp, site_id, person_id, spp, ind_id, obsdate, pheno_id, obsnum),
+              by = c("site_id", "person_id", "spp", "ind_id", "obsdate", "pheno_id")) %>%
+    mutate(dups = sequence(rle(as.character(obsnum))$lengths))
+  
+  dupi <- which(dat$dups == 2)
+  dat[sort(c(dupi, dupi - 1)), c("site_name", "spp", "ind_id", "pheno_name", 
+                                 "pheno_status", "intensity_id", "intensity", 
+                                 "obsdate", "obsnum", "dups")]
+  
+  
+  
+
+  
+  
+
 
