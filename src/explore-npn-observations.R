@@ -49,12 +49,19 @@ dat <- orig %>%
          intensity = Intensity_Value,
          comments = Observation_Comments) 
 
+# Removing records with pheno_status == -1 (indicates pheno_status unknown)
+  dat <- dat %>% filter(pheno_status != -1)
+  
+# Removing records in 2009-2011 (since many of them have different phenophases)
+# that might result in the data being recorded slightly differently
+  dat <- dat %>% filter(yr > 2011)
+
 # Given so few records of cardon, will remove them
   dat <- dat %>% filter(spp != "Mexican giant cactus")
 
 # Observations by state
   count(dat, state) 
-  # Vast majority in AZ, 1000+ in CA, 100+ in NM, 30 in TX, 20 in Sonora, 420 NA
+  # Vast majority in AZ, 900+ in CA, 100+ in NM, 30 in TX, 20 in Sonora, 375 NA
   nostate <- filter(dat, is.na(state))
   nostate %>%
     select(group, site_id, site_name, lat, lon, 
@@ -63,33 +70,54 @@ dat <- orig %>%
   # All state = NA have group = Leslie Canyon NWR and similar lat/lon
   # Can change state to AZ
   dat$state[is.na(dat$state)] <- "AZ"
+  rm(nostate)
 
 # Phenophases
   count(dat, pheno_id, pheno_name)
-  # Look just at those phases that have (1 location) in their name
-  dat %>%
-    filter(grepl("(1 location)", pheno_name)) %>%
-    count(yr)
-  count(dat, yr)
-  # All observations in 2009 and 2010 are the (1 location) phenophases
-  # Some observations in 2011 are the (1 location) phenophases
-  # Combine these phases? (will see if it's worth it given the number of sites
-  # observed in early years)
+  # Lots of records for all 5 phenophases
 
 # Intensities
   count(dat, pheno_name, intensity_id, intensity)
+  # intensity_id isn't useful (can have diff0 IDs for same value and phenophase)
+  count(dat, intensity)
+  # 10 records with "More than 1,000".
+  filter(dat, intensity == "More than 1,000")
+  count(filter(dat, spp == "saguaro"), pheno_name, intensity)
+  # These are for flowers/fruits on saguaros where the "1,001 to 10,000" option 
+  # doesn't seem to be available.
+
+  # Going to create ordered levels that are more logical
+  intensities <- data.frame(intensity = c("Less than 3",
+                                          "3 to 10",
+                                          "11 to 100",
+                                          "101 to 1,000",
+                                          "More than 1,000",
+                                          "1,001 to 10,000",
+                                          "More than 10,000",
+                                          "Less than 5%",
+                                          "5-24%",
+                                          "25-49%",
+                                          "50-74%",
+                                          "75-94%",
+                                          "95% or more")) %>%
+    mutate(intensity_level = paste0(c(1:5, 5:6, 1:6), ": ", intensity))
+  dat <- left_join(dat, intensities, by = "intensity") %>%
+    select(-intensity_id)
+  # Checks:
+  # count(dat, pheno_name, intensity_level, intensity)
+  # count(dat, intensity_level, intensity)
+
+# Removing obs_id and comment columns and then remove any duplicate entries
+  dat <- dat %>%
+    select(-c(comments, obs_id)) %>%
+    distinct()
   
 # Groups
-  count(dat, group) # 38 groups, some with thousands of observations
+  count(dat, group) # 37 groups, some with thousands of observations
   # Some with > 10,000 rows (eg, McDowell, Tohono Chul, UA Campus Arb)
-  # Flowers for Bats: 1846 obs
-  # Borderlands Restoration: 1506
-  # Chiricahua NM, Coronado NM, Fort Bowie NHS: each with 3500+
-
-# Patch
-  count(dat, patch)
-  # 8806 values are 1, rest/majority are all NA
-  count(dat, spp, patch)
+  # Flowers for Bats: 1832 obs
+  # Borderlands Restoration: 1424
+  # Chiricahua NM, Coronado NM, Fort Bowie NHS: each with 3300+
 
 # Sites
   sites <- dat %>%
@@ -101,9 +129,10 @@ dat <- orig %>%
     data.frame()
   summary(sites)
   count(sites, nspp) # Most sites have 1 spp; range = 1-5
-  count(sites, nind) # Most sites have 1 ind; range = 1-14
-  filter(sites, nind > 4)
-  filter(sites, grepl("Ranch", site_name))
+  count(sites, nind) # Most sites have 1 individual plant/patch; range = 1-14
+  filter(sites, nind > 4) # 25 sites with 5 or more individuals
+  filter(sites, grepl("Ranch", site_name)) 
+    # Sands Ranch and Brown's Ranch, Jane Rau have a lot of data
 
 # Individuals/Patches
   inds <- dat %>%
@@ -117,7 +146,7 @@ dat <- orig %>%
   nrow(inds); length(unique(inds$ind_id)) # ok
   
   # Distribution of species among individuals
-  count(inds, spp) # 330 saguaros; 303 A. palmeri; 97 A. americana; 34 A. parryi
+  count(inds, spp) # 311 saguaros; 303 A. palmeri; 96 A. americana; 34 A. parryi
   
   # Distribution of "patch" for each spp
   count(inds, spp, patch)
@@ -126,17 +155,16 @@ dat <- orig %>%
   
   filter(inds, spp == "saguaro" & patch == 1)
   count(filter(dat, spp == "saguaro" & patch == 1), 
-        pheno_name, pheno_status, intensity)
-  filter(dat, spp == "saguaro" & patch ==1 & intensity == "101 to 1,000")
+        pheno_name, pheno_status, intensity_level)
+  filter(dat, spp == "saguaro" & patch == 1 & intensity == "101 to 1,000")
   # I think they might be making observations at the patch level for multiple 
   # saguaros in a few instances (eg, ind_id = 16042 @ the UA Krutch Garden)
   
   # With respect to the patch entry for agaves, not sure that people are 
   # entering things correctly.
   
-# Phenophase status (excluding those old "1 location" phases)
+# Finding and removing observations of the same individual on the same date 
   obs <- dat %>%
-    filter(!grepl("(1 location)", pheno_name)) %>%
     group_by(site_id, site_name, group, person_id, spp, ind_id, patch, 
              obsdate, yr) %>%
     summarize(.groups = "keep",
@@ -144,73 +172,82 @@ dat <- orig %>%
     data.frame()
   head(obs)
   count(obs, phenos)
-  # 28,770 of 31,209 ind/date combos have 5 entries, which makes sense since 
-  # there are 5 phenophases (flowers, open flowers, fruits, ripe fruits, drop)
-  # BUT there are > 2,000 combos with 1-4 entries and 200 combos with 6-15
-  
-  obsp <- dat %>%
-    filter(!grepl("(1 location)", pheno_name)) %>%
-    group_by(site_id, site_name, group, person_id, spp, ind_id, patch, 
-             obsdate, yr, pheno_id, pheno_name) %>%
-    summarize(.groups = "keep",
-              nobs = length(pheno_id)) %>%
-    data.frame()
-  
-  count(obsp, nobs) # 951 combos with phenos = 2, 21 with phenos = 3
-  filter(obsp, nobs == 3)
-  filter(dat, ind_id == 74154 & obsdate == "2014-11-17")
-  # Are these just duplicate entries/observations?
-  
-  # Removing what are essentially duplicate entries/observations and removing
-  # the early phenophases with "(1 location)".
-  dat <- dat %>%
-    filter(!grepl("(1 location)", pheno_name)) %>%
-    distinct(ind_id, obsdate, pheno_id, pheno_status, intensity, 
-             .keep_all = TRUE)
-  
+  # 28,216 of 31,025 ind/date/person combos have 5 entries, which makes sense 
+  # since there are 5 phenophases. BUT there are > 2,000 combos with 1-4 entries 
+  # and 18 combos with 6-8
+
   obsp <- dat %>%
     group_by(site_id, site_name, group, person_id, spp, ind_id, patch, 
              obsdate, yr, pheno_id, pheno_name) %>%
     summarize(.groups = "keep",
               nobs = length(pheno_id)) %>%
     data.frame()
-  
-  count(obsp, nobs) 
-    # Now just 40 instances where there are two records of the same individual
-    # plant/patch and phenophase on the same date by the same person.
-    
-  filter(obsp, nobs > 1)
-  filter(dat, ind_id == 172139 & obsdate == "2019-08-09") 
-    # In this case, 2 entries for each ind/date/phase, pheno_status = 0 and 1
-  filter(dat, ind_id == 200993 & obsdate == "2020-09-13") 
-    # Same here, except a few have pheno_status = -1
-  
-  # TODO: make sure that we've removed all duplicates and gotten rid of
-  # questionable entries (eg, pheno_status = -1?)
+  head(obsp)
+  count(obsp, nobs) # 32 combos with nobs = 2
+    filter(obsp, nobs == 2)
+    filter(dat, ind_id == 172139 & obsdate == "2019-08-09")
+    # One observation with pheno_status = 1 with intensity values and one with 0s
+    filter(dat, ind_id == 117053 & obsdate == "2021-10-27")
+    # Different people making observations of the same individual on the same date
   
   # Get rid of rows in dat that are observations of the same ind plant/patch 
-  # by the same person on the same day. Remove those with lower pheno_id and 
+  # by the same person on the same day. Remove those with lower pheno_status and 
   # intensity value
   obsp <- obsp %>%
     arrange(site_id, person_id, spp, ind_id, obsdate, pheno_id) %>%
     mutate(obsnum = row_number())
-  
   dat <- dat %>%
     arrange(site_id, person_id, spp, ind_id, obsdate, pheno_id, 
-            desc(pheno_status), intensity) %>%
+            desc(pheno_status), desc(intensity_level)) %>%
     left_join(select(obsp, site_id, person_id, spp, ind_id, obsdate, pheno_id, obsnum),
               by = c("site_id", "person_id", "spp", "ind_id", "obsdate", "pheno_id")) %>%
     mutate(dups = sequence(rle(as.character(obsnum))$lengths))
-  
   dupi <- which(dat$dups == 2)
   dat[sort(c(dupi, dupi - 1)), c("site_name", "spp", "ind_id", "pheno_name", 
-                                 "pheno_status", "intensity_id", "intensity", 
+                                 "pheno_status", "intensity_level", 
                                  "obsdate", "obsnum", "dups")]
+  # Quick look at these duplicates suggests it's fine to remove all the rows 
+  # with dups = 2 (we're keeping the entries with more advanced phenology or
+  # more information)
+  dat <- dat %>%
+    filter(dups == 1) %>%
+    select(-dups)
   
+  # Remove any identical observations of the same individual on the same date
+  # by different people
+  dat <- dat %>%
+    arrange(site_id, group, person_id, spp, ind_id, obsdate, pheno_id, 
+            desc(pheno_status), desc(intensity_level)) %>%
+    distinct(ind_id, obsdate, pheno_id, pheno_status, intensity_level, 
+             .keep_all = TRUE)
   
+  # Now look at observations (that aren't identical) of the same individual on 
+  # the same date by different people
+  obsp <- dat %>%
+    group_by(site_id, site_name, spp, ind_id, patch, obsdate, yr, 
+             pheno_id, pheno_name) %>%
+    summarize(.groups = "keep",
+              nobs = length(pheno_id)) %>%
+    data.frame() %>%
+    arrange(site_id, spp, ind_id, obsdate, pheno_id) %>%
+    mutate(obsnum = row_number())
+  dat <- dat %>%
+    select(-obsnum) %>%
+    arrange(site_id, spp, ind_id, obsdate, pheno_id, 
+            desc(pheno_status), desc(intensity_level)) %>%
+    left_join(select(obsp, site_id, spp, ind_id, obsdate, pheno_id, obsnum),
+              by = c("site_id", "spp", "ind_id", "obsdate", "pheno_id")) %>%
+    mutate(dups = sequence(rle(as.character(obsnum))$lengths)) 
+  count(dat, dups) 
+  # Looks like we have 535 dups = 2; 18 dups = 3; and 2 dups = 4
+  # Not sure what to do with these, other than to pick one observation...
+  # For now, we'll keep the entries with more advanced phenology
+  dat <- dat %>%
+    filter(dups == 1) %>%
+    select(-c(dups, obsnum))
   
+  # Now there are 1-5 observed phenophases per individual & date
 
   
   
-
 
