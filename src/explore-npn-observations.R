@@ -1,10 +1,11 @@
 # Initial exploration of NPN data
 # Erin Zylstra
 # ezylstra@arizona.edu
-# 2023-11-02
+# 2023-11-07
 
 library(dplyr)
 library(lubridate)
+library(tidyr)
 
 rm(list = ls())
 
@@ -78,7 +79,7 @@ dat <- orig %>%
 
 # Intensities
   count(dat, pheno_name, intensity_id, intensity)
-  # intensity_id isn't useful (can have diff0 IDs for same value and phenophase)
+  # intensity_id isn't useful (can have diff IDs for same value and phenophase)
   count(dat, intensity)
   # 10 records with "More than 1,000".
   filter(dat, intensity == "More than 1,000")
@@ -248,6 +249,118 @@ dat <- orig %>%
   
   # Now there are 1-5 observed phenophases per individual & date
 
+# Now working with reduced dataset --------------------------------------------#
   
+# Look for phenophase status inconsistencies
+  # Create a dataframe with one row for every observation (ind & date)
+  indobs <- dat %>%
+    group_by(site_id, site_name, spp, ind_id, patch, obsdate) %>%
+    summarize(nobs = length(site_id), .groups = "keep") %>%
+    mutate(indobs = paste0(ind_id, "_", obsdate)) %>%
+    data.frame()
   
+  indobs_full <- expand.grid(indobs = indobs$indobs,
+                             pheno_name = sort(unique(dat$pheno_name)),
+                             KEEP.OUT.ATTRS = FALSE)
+  dat$indobs <- paste0(dat$ind_id, "_", dat$obsdate)
+  
+  indobs_full <- indobs_full %>%
+    left_join(select(dat, c(indobs, pheno_name, pheno_status, intensity_level)),
+              by = c("indobs", "pheno_name")) %>%
+    left_join(select(indobs, -nobs), by = "indobs") %>%
+    arrange(site_id, ind_id, spp, obsdate, pheno_name)
+  
+  indobs_ph <- indobs_full %>%
+    select(-intensity_level) %>%
+    pivot_wider(names_from = pheno_name,
+                values_from = pheno_status) %>%
+    data.frame() %>%
+    rename(flowers = Flowers.or.flower.buds,
+           fruit = Fruits,
+           flowers_open = Open.flowers,
+           fruit_drop = Recent.fruit.or.seed.drop,
+           fruit_ripe = Ripe.fruits)
 
+  count(indobs_ph, flowers, flowers_open)
+  # Every combination of 0/1/NA exists....
+  # If flowers = 0, flowers_open can only be 0 or NA
+  # If flowers = NA, there's no useful information EXCEPT if flowers_open has 
+  # an intensity value, then the flowers should probably be 1.
+  
+  count(indobs_ph, fruit, fruit_ripe)
+  # Every combination of 0/1/NA exists....
+  # If fruit = 0, fruit_ripe can only be 0 or NA
+  # If fruit = NA, there's no useful information EXCEPT if fruit_rip has 
+  # an intensity value, then the fruit should probably be 1.
+
+  indobs_int <- indobs_full %>%
+    select(-pheno_status) %>%
+    pivot_wider(names_from = pheno_name,
+                values_from = intensity_level) %>%
+    data.frame() %>%
+    rename(i_flowers = Flowers.or.flower.buds,
+           i_fruit = Fruits,
+           i_flowers_open = Open.flowers,
+           i_fruit_drop = Recent.fruit.or.seed.drop,
+           i_fruit_ripe = Ripe.fruits)
+  
+  indobs_w <- left_join(indobs_ph,
+                        select(indobs_int, -c(site_id, site_name, spp, ind_id,
+                                              patch, obsdate)),
+                        by = "indobs")
+  
+  count(indobs_w, flowers, flowers_open, i_flowers, i_flowers_open)
+  # CHANGES NEEDED:
+    # flowers = 1 if flowers_open = 1 and i_flowers_open != NA
+    # flowers_open = 0 if flowers = 0 and i_flowers_open = NA
+    # flowers_open = NA if flowers = NA
+  # UNINFORMATIVE: flowers = NA and flowers_open = 0 (n = 249)
+  # UNINFORMATIVE: flowers = NA and flowers_open = NA (n = 13)
+
+  count(indobs_w, fruit, fruit_ripe, i_fruit, i_fruit_ripe)
+  # CHANGES NEEDED: 
+    # fruit = 1 if fruit_ripe == 1 and i_fruit_ripe != NA
+    # fruit_ripe = 0 if fruit = 0 and i_fruit_ripe = NA
+    # fruit_ripe = NA if fruit = NA
+  # UNINFORMATIVE: fruit = NA and fruit_ripe = 0 (n = 46)
+  # UNINFORMATIVE: fruit = NA and fruit_ripe = NA (n = 528)
+
+  # Fixing inconsistencies in the wide individual-observation dataframe:
+  for (i in 1:nrow(indobs_w)) {
+    if (!is.na(indobs_w$flowers_open[i]) & indobs_w$flowers_open[i] == 1 & 
+        !is.na(indobs_w$i_flowers_open[i])) {
+      indobs_w$flowers[i] <- 1
+    }
+    if (!is.na(indobs_w$flowers[i]) & indobs_w$flowers[i] == 0 & 
+        !is.na(indobs_w$flowers_open[i]) & indobs_w$flowers_open[i] == 1 & 
+        is.na(indobs_w$i_flowers_open[i])) {
+      indobs_w$flowers_open[i] <- 0
+    }
+    if (is.na(indobs_w$flowers[i])) {
+      indobs_w$flowers_open[i] <- NA
+    }
+    if (!is.na(indobs_w$fruit_ripe[i]) & indobs_w$fruit_ripe[i] == 1 & 
+        !is.na(indobs_w$i_fruit_ripe[i])) {
+      indobs_w$fruit[i] <- 1
+    }
+    if (!is.na(indobs_w$fruit[i]) & indobs_w$fruit[i] == 0 & 
+        !is.na(indobs_w$fruit_ripe[i]) & indobs_w$fruit_ripe[i] == 1 & 
+        is.na(indobs_w$i_fruit_ripe[i])) {
+      indobs_w$fruit_ripe[i] <- 0
+    }
+    if (is.na(indobs_w$fruit[i])) {
+      indobs_w$fruit_ripe[i] <- NA
+    }
+  }
+  # Checks:
+  # count(indobs_w, flowers, flowers_open, i_flowers, i_flowers_open)
+  # count(indobs_w, fruit, fruit_ripe, i_fruit, i_fruit_ripe)
+
+  # Add information from the original dataframe (dat) to indobs dataframe
+  indobs_w <- indobs_w %>%
+    left_join(select(dat, indobs, person_id, group, lat, lon, elev, state,
+                     species_id, plant_nickname, doy, yr), 
+              by = "indobs", multiple = "any") %>%
+    arrange(indobs)
+  
+  
