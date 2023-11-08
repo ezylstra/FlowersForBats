@@ -6,3 +6,7 @@
 # AGFD data
 data/agfd/*
 !data/agfd/.gitkeep
+
+# DEM data
+data/dem/*
+!data/dem/.gitkeep
