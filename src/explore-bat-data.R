@@ -84,7 +84,44 @@ byb_locs <- read.csv("data/agfd/agfd-backyard-locations.csv",
   # Horizontal bar for each site, year, with vertical bands (white = not
   # operating; gray = no detections; light color = call = 1; dark = call > 1)
   
-  # Map with locations of 6 sites
+  gr_locsv <- vect(gr_locs, geom = c("east", "north"), 
+                   crs = "+proj=utm +zone=12 +datum=WGS84 +units=m")
+
+  # Super simple plots...
+  # Download shapefiles with administrate boundaries if not yet done
+  # us <- gadm("USA", path = "data/", level = 1)
+  # mx <- gadm("MEX", path = "data/", level = 1)
+  us <- readRDS("data/gadm/gadm41_USA_1_pk.rds")
+  mx <- readRDS("data/gadm/gadm41_MEX_1_pk.rds")
+  
+  states <- c("Arizona", "California", "New Mexico", "Texas", "Nevada", "Utah", 
+              "Colorado", "Kansas", 'Oklahoma')
+  states_mx <- c("Sonora", "Chihuahua", "Coahuila", "Baja California")
+  us.states <- us[us$NAME_1 %in% states,]
+  mx.states <- mx[mx$NAME_1 %in% states_mx,]
+  
+  dem_files <- list.files("data/dem", full.names = TRUE)
+  dem_list <- NULL
+  for (i in 1:length(dem_files)) {
+    dem_list[[i]] <- rast(dem_files[i])
+  }
+  dem_coll <- sprc(dem_list)
+  dem <- merge(dem_coll)
+
+  # Put everything in the same crs
+  gr_locsll <- project(gr_locsv, crs(dem))
+  us.states <- project(us.states, crs(dem))
+  mx.states <- project(mx.states, crs(dem))
+  
+  # Plot
+  ggplot() +
+    geom_spatvector(data = us.states, fill = NA) +    
+    # geom_spatraster(data = dem) +
+    ylim(31, 34) +
+    xlim(-114.5, -109) +
+    geom_spatvector(data = gr_locsll, col = "red") +
+    theme_bw()
+  
   
 # Backyard data
   # Clean up data and remove any observations if there's no location info
@@ -118,5 +155,63 @@ byb_locs <- read.csv("data/agfd/agfd-backyard-locations.csv",
     left_join(byb_expids, by = c("loc", "yr"))
   count(distinct(byb, loc, yr, Lepto), Lepto)
     # 15 FALSE, 139 TRUE, 1251 NAs.
+  
+  # Extract just data for sites where Lepto == TRUE (in one or more years)
+  # But excluding years if Lepto == FALSE
+  lsites <- sort(unique(byb_expids$loc[which(byb_expids$Lepto == TRUE)]))
+  bybl <- byb %>%
+    filter(loc %in% lsites) %>%
+    filter(is.na(Lepto) | Lepto == TRUE)
+  
+  # Plot locations
+  byb_locsv <- vect(byb_locs, geom = c("east", "north"), 
+                    crs = "+proj=utm +zone=12 +datum=WGS84 +units=m")
+  byb_locsll <- project(byb_locsv, crs(dem))
+  
+  bybl_locs <- filter(byb_locs, loc %in% bybl$loc)
+  bybl_locsv <- vect(bybl_locs, geom = c("east", "north"), 
+                     crs = "+proj=utm +zone=12 +datum=WGS84 +units=m")
+  bybl_locsll <- project(bybl_locsv, crs(dem))
+  
+  ggplot() +
+    geom_spatvector(data = us.states, fill = NA) +    
+    # geom_spatraster(data = dem) +
+    ylim(31, 34) +
+    xlim(-114.5, -109) +
+    geom_spatvector(data = byb_locsll, col = "gray") +
+    geom_spatvector(data = bybl_locsll, col = "red") +
+    theme_bw()
+  # Lots in Tucson, but some also in Sierra Vista area. Wondering if the 
+  # distribution of sites where Leptos were confirmed is due to ease of access...
 
+  # Simplify fluid variable
+  bybl <- bybl %>%
+    mutate(fluid = ifelse(fluid_drop %in% c("Drained", "Much lower",                                             "MuchLower"), 2, 
+                          ifelse(fluid_drop %in% c("A little lower", "LittleLower"),
+                                 1, 0)))
+  count(bybl, fluid_drop, fluid)
+  
+  # Day of the year when changes in fluid levels
+  bybl_fl <- bybl %>%
+    group_by(fluid) %>%
+    summarize(n = length(fluid),
+              n_bat = sum(bat_obs == "Yes" & !is.na(bat_obs)),
+              n_nobat = sum(bat_obs %in% c("No", "0")),
+              doy_lcl = round(quantile(yday, prob = 0.05)),
+              doy_mn = round(mean(yday)),
+              doy_ucl = round(quantile(yday, prob = 0.95))) %>%
+    data.frame()
+  bybl_fl
 
+  # 95% of observations with significant fluid drops occurred between:
+  parse_date_time(x = bybl_fl$doy_lcl[bybl_fl$fluid == 2], orders = "j")
+  parse_date_time(x = bybl_fl$doy_ucl[bybl_fl$fluid == 2], orders = "j")
+  # August 14th to October 21st
+  
+  par(mfrow = c(3, 1))
+  hist(bybl$yday[bybl$fluid == 0], breaks = 50, xlim = c(1, 365), main = "fluid 0")
+  hist(bybl$yday[bybl$fluid == 1], breaks = 50, xlim = c(1, 365), main = "fluid 1") 
+  hist(bybl$yday[bybl$fluid == 2], breaks = 50, xlim = c(1, 365), main = "fluid 2")
+  
+  # Could see how things change if we look at all sites (not worrying about
+  # expert species ID) or at only those sites below 32 or 31.7 deg lat...
