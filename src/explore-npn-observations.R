@@ -455,37 +455,37 @@ dat <- orig %>%
   #         legend.title = element_blank())
   
   # Faceted
-  # ggplot() + 
-  #   geom_spatvector(data = az) + 
-  #   ylim(31, 32.7) +
-  #   xlim(-113, -109) +
-  #   geom_point(data = indiv_saz, aes(x = lon, y = lat)) +
-  #   facet_wrap(~spp) +
-  #   theme_bw()
+  ggplot() +
+    geom_spatvector(data = az) +
+    ylim(31, 32.7) +
+    xlim(-113, -109) +
+    geom_point(data = indiv_saz, aes(x = lon, y = lat)) +
+    facet_wrap(~spp) +
+    theme_bw()
 
 # Add DEMs to look at elevation patterns
-  # dem_files <- list.files("data/dem", full.names = TRUE) 
-  # dem_list <- NULL
-  # for (i in 1:length(dem_files)) {
-  #   dem_list[[i]] <- rast(dem_files[i])
-  # }
-  # 
-  # dem_coll <- sprc(dem_list)
-  # dem <- merge(dem_coll)
-  # dem <- project(dem, crs(us.states)) # takes a minute
-  # rm(dem_files, dem_list, dem_coll)
+  dem_files <- list.files("data/dem", full.names = TRUE)
+  dem_list <- NULL
+  for (i in 1:length(dem_files)) {
+    dem_list[[i]] <- rast(dem_files[i])
+  }
+
+  dem_coll <- sprc(dem_list)
+  dem <- merge(dem_coll)
+  dem <- project(dem, crs(us.states)) # takes a minute
+  rm(dem_files, dem_list, dem_coll)
   
   # Zoom into Tucson area
-  # ggplot() + 
-  #   geom_spatraster(data = dem) +
-  #   ylim(31.8, 32.6) +
-  #   xlim(-111.5, -110.4) +
-  #   geom_spatvector(data = az, fill = NA) + 
-  #   geom_point(data = indiv_saz, 
-  #              aes(x = lon, y = lat, group = spp, color = spp)) +
-  #   theme_bw() +
-  #   theme(legend.position = "right", 
-  #         legend.title = element_blank())
+  ggplot() +
+    geom_spatraster(data = dem) +
+    ylim(31.8, 32.6) +
+    xlim(-111.5, -110.4) +
+    geom_spatvector(data = az, fill = NA) +
+    geom_point(data = indiv_saz,
+               aes(x = lon, y = lat, group = spp, color = spp)) +
+    theme_bw() +
+    theme(legend.position = "right",
+          legend.title = element_blank())
  
 # Save cleaned up observation dataframe for use in other scripts
 # write.csv(dfw, "data/FlowersForBats_CleanedObs.csv", row.names = FALSE)
