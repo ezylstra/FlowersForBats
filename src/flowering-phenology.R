@@ -16,11 +16,11 @@ dat <- read.csv("data/FlowersforBats_CleanedObs.csv")
 # There is a maximum of one observation of each individual per day.
 dat <- dat %>% mutate(obsdate = ymd(obsdate))
 
-# Want to subset data so we're just looking at plants that are in the LLNB range
+# Want to subset data so we're just looking at plants that are in LLNB range.
 # Based on Fig 4 in the LLNB SSA, the area of interest extends to about 32.7 deg
 # latitude in AZ and NM, from -108 deg longitude and west. There was only one  
-# individual observed in Sonora and that was near Guaymas, so we'll exclude for 
-# now.
+# individual plant/patch observed in Sonora and that was near Guaymas, so we'll 
+# exclude that for now.
 
 # Look at distribution of latitudes in AZ
 hist(unique(dat$lat[dat$state == "AZ"]), breaks = 50)
@@ -61,7 +61,7 @@ plants <- indiv %>%
             .groups = "keep") %>%
   mutate(prop_patch = round(npatch / ninds, 2), .after = npatch) %>%
   data.frame()
-plants
+select(plants, -species_id)
 # Low % of individuals described as patches (2% for saguaro, 5-33% for agaves)
 # A. palmeri and A. chrysantha (goldenflower) with higher mean elevations than 
   # other species (1500, 1361 vs 819-1053 m)
@@ -80,7 +80,7 @@ ind_yr <- dat %>%
   group_by(ind_id, yr, spp) %>%
   summarize(obs_first = min(obsdate),
             obs_last = max(obsdate),
-            days_since_mn = mean(days_since, na.rm = TRUE),
+            days_since_mn = round(mean(days_since, na.rm = TRUE)),
             nobs = max(obsnum_yr),
             nflowers = sum(flowers, na.rm = TRUE),
             nopen = sum(flowers_open, na.rm = TRUE),
@@ -99,7 +99,8 @@ hist(ind_yr$nobs, breaks = 50)
 # Number of observations per year by species
 ind_yr %>%
   group_by(spp) %>%
-  summarize(n_indiv = length(spp),
+  summarize(n_indiv = length(unique(ind_id)),
+            n_indivyrs = length(spp),
             n_oneobsperyr = sum(nobs == 1),
             n_multobsperyr = sum(nobs > 1),
             n_5obsperyr = sum(nobs > 4)) %>%
