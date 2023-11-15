@@ -402,7 +402,7 @@ dat <- orig %>%
   
   # Do the same, but only for species in southern Arizona (below 33 deg lat)
   indiv_saz <- indiv %>%
-    filter(state == "AZ", lat < 32.9)
+    filter(state == "AZ", lat < 32.7)
   plants_saz <- indiv_saz %>%
     group_by(spp, species_id) %>%
     summarize(ninds = length(ind_id),
@@ -443,26 +443,6 @@ dat <- orig %>%
   # Just southern Arizona
   az <- us[us$NAME_1 == "Arizona",]
 
-  # All on one plot
-  # ggplot() + 
-  #   geom_spatvector(data = az) + 
-  #   ylim(31, 32.7) +
-  #   xlim(-113, -109) +
-  #   geom_point(data = indiv_saz, 
-  #              aes(x = lon, y = lat, group = spp, color = spp)) +
-  #   theme_bw() +
-  #   theme(legend.position = "bottom",
-  #         legend.title = element_blank())
-  
-  # Faceted
-  ggplot() +
-    geom_spatvector(data = az) +
-    ylim(31, 32.7) +
-    xlim(-113, -109) +
-    geom_point(data = indiv_saz, aes(x = lon, y = lat)) +
-    facet_wrap(~spp) +
-    theme_bw()
-
 # Add DEMs to look at elevation patterns
   dem_files <- list.files("data/dem", full.names = TRUE)
   dem_list <- NULL
@@ -472,12 +452,26 @@ dat <- orig %>%
 
   dem_coll <- sprc(dem_list)
   dem <- merge(dem_coll)
-  dem <- project(dem, crs(us.states)) # takes a minute
   rm(dem_files, dem_list, dem_coll)
-  
+  dem_crop <- crop(dem, c(-113, -109, 31, 32.7))
+
+  # Plot altogether
+  ggplot() +
+    geom_spatraster(data = dem_crop) +
+    scale_fill_whitebox_c(palette = "arid") +
+    ylim(31, 32.7) +
+    xlim(-113, -109) +
+    geom_spatvector(data = az, fill = NA) +
+    geom_point(data = indiv_saz,
+               aes(x = lon, y = lat, group = spp, color = spp)) +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          legend.title = element_blank())
+
   # Zoom into Tucson area
   ggplot() +
-    geom_spatraster(data = dem) +
+    geom_spatraster(data = dem_crop) +
+    scale_fill_whitebox_c(palette = "arid") +
     ylim(31.8, 32.6) +
     xlim(-111.5, -110.4) +
     geom_spatvector(data = az, fill = NA) +
@@ -486,6 +480,21 @@ dat <- orig %>%
     theme_bw() +
     theme(legend.position = "right",
           legend.title = element_blank())
+  
+  # Faceted, with DEMs
+  ggplot() +
+    geom_spatraster(data = dem_crop) +
+    scale_fill_whitebox_c(palette = "soft") +
+    geom_spatvector(data = az, fill = NA) +
+    ylim(31.3, 32.7) +
+    xlim(-111.7, -109) +
+    geom_point(data = filter(indiv_saz, spp != "organpipe cactus"), 
+               aes(x = lon, y = lat)) +
+    facet_wrap(~spp) +
+    theme_bw() +
+    labs(fill = "Elevation (m)") +
+    theme(legend.position = "bottom",
+          axis.title = element_blank())
  
 # Save cleaned up observation dataframe for use in other scripts
 # write.csv(dfw, "data/FlowersForBats_CleanedObs.csv", row.names = FALSE)
