@@ -1,7 +1,7 @@
 # Flowering phenology, based on NPN data
 # Erin Zylstra
 # ezylstra@arizona.edu
-# 2023-11-08
+# 2023-11-15
 
 library(dplyr)
 library(lubridate)
@@ -29,6 +29,16 @@ hist(unique(dat$lat[dat$state == "AZ"]), breaks = 50)
 dat <- dat %>% 
   filter(state == "AZ", lat < 32.7) %>%
   select(-state)
+
+# Removing organpipe and 2 agave species from dataset (A. americana and deserti)
+# (see notes and maps in explore-npn-observations.R), and give them a short name
+dat <- dat %>%
+  filter(!spp %in% c("American century plant", "desert agave", "organpipe cactus")) %>%
+  rename(spp_common = spp) %>%
+  mutate(spp = ifelse(spp_common == "saguaro", "C. gigantea",
+                      ifelse(spp_common == "Palmer's century plant", "A. palmeri",
+                             ifelse(spp_common == "Parry's agave", "A. parryi",
+                                    "A. chrysanthus"))))
 
 # Summarize information for each individual plant/patch (n = 649)
 # Including some summaries of intensity data to potentially indicate whether or
@@ -71,7 +81,7 @@ plants <- indiv %>%
 select(plants, -species_id)
 # Low % of individuals described as patches (2% for saguaro, 5-33% for agaves)
 # A. palmeri and A. chrysantha (goldenflower) with higher mean elevations than 
-  # other species (1500, 1361 vs 819-1053 m)
+  # A. parryi (1500, 1361 vs 1053 m)
 
 # Summarize data for each species AND patch type
 plantsp <- indiv %>%
@@ -84,15 +94,17 @@ plantsp <- indiv %>%
             flowers_10000 = sum(flowers_10000 > 0),
             .groups = "keep") %>%
   data.frame()
-# People are definitely classifying an individual as a patch or not incorrectly
-# For the species we care most about:
-filter(plantsp, spp == "Palmer's century plant")
+# People don't seem to be indicating that an individual is a patch very often...
+filter(plantsp, spp == "A. palmeri")
   # only 15 of 292 with patch = 1. Lots of instances with patch = NA with 
-  # number of flowers/infloresenses > 100 or > 1,000.
-filter(plantsp, spp == "Parry's agave")
+  # number of flowers/infloresences > 100 or > 1,000.
+filter(plantsp, spp == "A. parryi")
   # only 9 of 30 with patch = 1. Lots of instances with patch = NA with 
-  # number of flowers/infloresenses > 100 or > 1,000 and even > 10,0000
-filter(plantsp, spp == "saguaro")
+  # number of flowers/infloresences > 100 or > 1,000 and even > 10,0000
+filter(plantsp, spp == "A. chrysanthus")
+  # only 8 of 24 with patch = 1. Both patch = 1 and NA have instances with
+  # number of flowers/infloresences > 10,0000
+filter(plantsp, spp == "C. gigantea")
   # 5 of 249 with patch = 1 (which is expected/good). 
   # For both patch = 1 or NA, max number of flowers = 101 to 1000.
 
@@ -124,7 +136,8 @@ ind_yr <- dat %>%
   data.frame()
 
 # Number of observations per year, across species
-hist(ind_yr$nobs, breaks = 50)
+hist(ind_yr$nobs, breaks = 50, xlab = "Number of observations",
+     main = "Number of observations of an individual per year")
 
 # Number of observations per year by species
 ind_yr %>%
@@ -140,54 +153,74 @@ ind_yr %>%
 
 # First day of year with flowers or buds, open flowers
 par(mfrow = c(2, 1))
-hist(ind_yr$flowers_first, breaks = 50, xlim = c(0, 365))
-hist(ind_yr$open_first, breaks = 50, xlim = c(0, 365))
+hist(ind_yr$flowers_first, breaks = 50, xlim = c(0, 365), xlab = "Day of year",
+     main = "First day of year with flowers")
+hist(ind_yr$open_first, breaks = 50, xlim = c(0, 365), xlab = "Day of year",
+     main = "First day of year with open flowers")
 
-# First day of year with flowers, by species (with 20 or more individuals)
-par(mfrow = c(3, 2), mar = c(2,4,4,1))
-hist(ind_yr$flowers_first[ind_yr$spp == "saguaro"], breaks = 25, xlim = c(0, 365),
-     main = "Saguaro", xlab = "")
-hist(ind_yr$flowers_first[ind_yr$spp == "American century plant"], breaks = 25, xlim = c(0, 365),
-     main = "American century plant", xlab = "")
-hist(ind_yr$flowers_first[ind_yr$spp == "Palmer's century plant"], breaks = 25, xlim = c(0, 365),
-     main = "Palmer's century plant", xlab = "")
-hist(ind_yr$flowers_first[ind_yr$spp == "goldenflower century plant"], breaks = 25, xlim = c(0, 365),
-     main = "goldenflower century plant", xlab = "")
-hist(ind_yr$flowers_first[ind_yr$spp == "Parry's agave"], breaks = 25, xlim = c(0, 365),
-     main = "Parry's agave", xlab = "")
+# First day of year with flowers, by species
+par(mfrow = c(4, 1), mar = c(2, 4, 2, 1))
+hist(ind_yr$flowers_first[ind_yr$spp == "C. gigantea"], breaks = 25, 
+     xlim = c(0, 365), main = "C. gigantea", xlab = "")
+hist(ind_yr$flowers_first[ind_yr$spp == "A. palmeri"], breaks = 25, 
+     xlim = c(0, 365), main = "A. palmeri", xlab = "")
+hist(ind_yr$flowers_first[ind_yr$spp == "A. parryi"], breaks = 25, 
+     xlim = c(0, 365), main = "A. parryi", xlab = "")
+hist(ind_yr$flowers_first[ind_yr$spp == "A. chrysanthus"], breaks = 25, 
+     xlim = c(0, 365), main = "A. chrysanthus", xlab = "")
 
-# First day of year with open flowers, by species (with 20 or more individuals)
-par(mfrow = c(3, 2), mar = c(2,4,4,1))
-hist(ind_yr$open_first[ind_yr$spp == "saguaro"], breaks = 25, xlim = c(0, 365),
-     main = "Saguaro", xlab = "")
-hist(ind_yr$open_first[ind_yr$spp == "American century plant"], breaks = 25, xlim = c(0, 365),
-     main = "American century plant", xlab = "")
-hist(ind_yr$open_first[ind_yr$spp == "Palmer's century plant"], breaks = 25, xlim = c(0, 365),
-     main = "Palmer's century plant", xlab = "")
-hist(ind_yr$open_first[ind_yr$spp == "goldenflower century plant"], breaks = 25, xlim = c(0, 365),
-     main = "goldenflower century plant", xlab = "")
-hist(ind_yr$open_first[ind_yr$spp == "Parry's agave"], breaks = 25, xlim = c(0, 365),
-     main = "Parry's agave", xlab = "")
+# First day of year with open flowers, by species
+par(mfrow = c(4, 1), mar = c(2, 4, 2, 1))
+hist(ind_yr$open_first[ind_yr$spp == "C. gigantea"], breaks = 25, 
+     xlim = c(0, 365), main = "C. gigantea", xlab = "")
+hist(ind_yr$open_first[ind_yr$spp == "A. palmeri"], breaks = 25, 
+     xlim = c(0, 365), main = "A. palmeri", xlab = "")
+hist(ind_yr$open_first[ind_yr$spp == "A. parryi"], breaks = 25, 
+     xlim = c(0, 365), main = "A. parryi", xlab = "")
+hist(ind_yr$open_first[ind_yr$spp == "A. chrysanthus"], breaks = 25, 
+     xlim = c(0, 365), main = "A. chrysanthus", xlab = "")
 
-# Plotting all observations dates when 50-74% of flowers are open, by species
-par(mfrow = c(3, 2), mar = c(2,4,4,1))
-hist(dat$doy[which(dat$spp == "saguaro" & dat$i_flowers_open == "4: 50-74%")], 
-     breaks = 25, xlim = c(0, 365), main = "Saguaro", xlab = "")
-hist(dat$doy[which(dat$spp == "American century plant" & dat$i_flowers_open == "4: 50-74%")], 
-     breaks = 25, xlim = c(0, 365), main = "American century plant", xlab = "")
-hist(dat$doy[which(dat$spp == "Palmer's century plant" & dat$i_flowers_open == "4: 50-74%")], 
-     breaks = 25, xlim = c(0, 365), main = "Palmer's century plant", xlab = "")
-hist(dat$doy[which(dat$spp == "goldenflower century plant" & dat$i_flowers_open == "4: 50-74%")], 
-     breaks = 25, xlim = c(0, 365), main = "goldenflower century plant", xlab = "")
-hist(dat$doy[which(dat$spp == "Parry's agave" & dat$i_flowers_open == "4: 50-74%")], 
-     breaks = 25, xlim = c(0, 365), main = "Parry's agave", xlab = "")
-  # Saguaro and Palmer's data look decent. Goldenflower marginal. Almost no info
-  # for the other spp (American and Parry's)
+# Plotting all observation dates when 50-74% of flowers are open, by species
+par(mfrow = c(4, 1), mar = c(2, 4, 2, 1))
+hist(dat$doy[which(dat$spp == "C. gigantea" & dat$i_flowers_open == "4: 50-74%")], 
+     breaks = 25, xlim = c(0, 365), main = "C. gigantea", xlab = "")
+hist(dat$doy[which(dat$spp == "A. palmeri" & dat$i_flowers_open == "4: 50-74%")], 
+     breaks = 25, xlim = c(0, 365), main = "A. palmeri", xlab = "")
+hist(dat$doy[which(dat$spp == "A. palmeri" & dat$i_flowers_open == "4: 50-74%")], 
+     breaks = 25, xlim = c(0, 365), main = "A. parryi", xlab = "")
+hist(dat$doy[which(dat$spp == "A. chrysanthus" & dat$i_flowers_open == "4: 50-74%")], 
+     breaks = 25, xlim = c(0, 365), main = "A. chrysanthus", xlab = "")
 
-# Need to look at things proportionally, since the number of observations in each
-# phenophase likely reflects effort as much as differences in prevalence....
+# Need to look at things proportionally, since the number of observations in 
+# each phenophase likely reflects effort as much as differences in prevalence...
 
-# Combine P. palmeri and P. parryi? Parryi does seem to bloom a bit earlier,
-# but maybe okay?
+# Create an index for week and a variable to group all agave together
+dat <- dat %>%
+  mutate(wk = isoweek(obsdate),
+         spp2 = ifelse(spp == "C. gigantea", "saguaro", "agave"))
 
+# Calculate proportions by week and species and year
+prop_sppyr <- dat %>%
+  group_by(spp, yr, wk) %>%
+  summarize(nobs = length(spp),
+            nobs_flower = sum(!is.na(flowers)),
+            prop_flower = round(sum(flowers, na.rm = TRUE) / nobs_flower, 2),
+            nobs_open = sum(!is.na(flowers_open)),
+            prop_open = round(sum(flowers_open, na.rm = TRUE) / nobs_open, 2),
+            .groups = "keep") %>%
+  # Only keep spp/yr/week when there are XX observations?
+  data.frame()
+
+# Calculate proportions by week and genus and year
+prop_genusyr <- dat %>%
+  group_by(spp2, yr, wk) %>%
+  summarize(nobs = length(spp),
+            nobs_flower = sum(!is.na(flowers)),
+            prop_flower = round(sum(flowers, na.rm = TRUE) / nobs_flower, 2),
+            nobs_open = sum(!is.na(flowers_open)),
+            prop_open = round(sum(flowers_open, na.rm = TRUE) / nobs_open, 2),
+            .groups = "keep") %>%
+  # Only keep genus/yr/week when there are XX observations?
+  data.frame()
+            
 
