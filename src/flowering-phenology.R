@@ -6,6 +6,8 @@
 library(dplyr)
 library(lubridate)
 library(tidyr)
+library(ggplot2)
+library(cowplot)
 
 rm(list = ls())
 
@@ -199,28 +201,241 @@ dat <- dat %>%
   mutate(wk = isoweek(obsdate),
          spp2 = ifelse(spp == "C. gigantea", "saguaro", "agave"))
 
-# Calculate proportions by week and species and year
-prop_sppyr <- dat %>%
-  group_by(spp, yr, wk) %>%
-  summarize(nobs = length(spp),
-            nobs_flower = sum(!is.na(flowers)),
-            prop_flower = round(sum(flowers, na.rm = TRUE) / nobs_flower, 2),
-            nobs_open = sum(!is.na(flowers_open)),
-            prop_open = round(sum(flowers_open, na.rm = TRUE) / nobs_open, 2),
-            .groups = "keep") %>%
-  # Only keep spp/yr/week when there are XX observations?
-  data.frame()
+# Calculate proportions of plants/patches in each phenophase by week and year
+  # First, will want to remove multiple observations of the same individual in
+  # the same week. Sort so the more advanced phenophase gets kept (if more 
+  # than one value in a week)
+  prop_sppyr <- dat %>%
+    arrange(spp, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
+    distinct(ind_id, yr, wk, .keep_all = TRUE) %>%
+    group_by(spp, yr, wk) %>%
+    summarize(nobs = length(spp),
+              nobs_flower = sum(!is.na(flowers)),
+              prop_flower = round(sum(flowers, na.rm = TRUE) / nobs_flower, 2),
+              nobs_open = sum(!is.na(flowers_open)),
+              prop_open = round(sum(flowers_open, na.rm = TRUE) / nobs_open, 2),
+              .groups = "keep") %>%
+    data.frame()
+  prop_spp <- dat %>%
+    arrange(spp, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
+    distinct(ind_id, yr, wk, .keep_all = TRUE) %>%
+    group_by(spp, wk) %>%
+    summarize(nobs = length(spp),
+              nobs_flower = sum(!is.na(flowers)),
+              prop_flower = round(sum(flowers, na.rm = TRUE) / nobs_flower, 2),
+              nobs_open = sum(!is.na(flowers_open)),
+              prop_open = round(sum(flowers_open, na.rm = TRUE) / nobs_open, 2),
+              .groups = "keep") %>%
+    mutate(yr = "All years", .after = "spp") %>%
+    data.frame()
+  prop_sppyr <- rbind(prop_sppyr, prop_spp) %>%
+    arrange(spp, yr, wk) %>%
+    mutate(date_generic = parse_date_time(paste(2024, wk, 1, sep="/"), "Y/W/w"),
+           date_generic = as.Date(date_generic)) 
 
+# Plot curves for saguaro
+  # Proportion of plants with flowers or buds
+  sag_fl <- ggplot(data = filter(prop_sppyr, spp == "C. gigantea", yr != "All years"),
+                   aes(x = date_generic, y = prop_flower, group = yr, color = yr)) +
+    labs(x = "", y = "Proportion with flowers or buds") +
+    geom_point(alpha = 0.3) + 
+    geom_line(alpha = 0.3) +
+    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
+    geom_smooth(data = filter(prop_sppyr, spp == "C. gigantea", yr == "All years"),
+                aes(x = date_generic, y = prop_flower), color = "black", 
+                method = "loess", se = FALSE,  span = 0.25) +
+    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "Saguaros",
+             hjust = 1, vjust = 1, fontface = 2) +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          legend.title = element_blank()) +
+    guides(color = guide_legend(nrow = 2))
+  # Proportion of plants with open flowers
+  sag_of <- ggplot(data = filter(prop_sppyr, spp == "C. gigantea", yr != "All years"),
+                   aes(x = date_generic, y = prop_open, group = yr, color = yr)) +
+    labs(x = "", y = "Proportion with open flowers") +
+    geom_point(alpha = 0.3) + 
+    geom_line(alpha = 0.3) +
+    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
+    geom_smooth(data = filter(prop_sppyr, spp == "C. gigantea", yr == "All years"),
+                aes(x = date_generic, y = prop_open), color = "black", 
+                method = "loess", se = FALSE,  span = 0.25) +
+    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "Saguaros",
+             hjust = 1, vjust = 1, fontface = 2) +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          legend.title = element_blank()) +
+    guides(color = guide_legend(nrow = 2))
+
+# Plot curves for A. palmeri  
+  # Proportion of plants with flowers or buds
+  palm_fl <- ggplot(data = filter(prop_sppyr, spp == "A. palmeri", yr != "All years"),
+                    aes(x = date_generic, y = prop_flower, group = yr, color = yr)) +
+    labs(x = "", y = "Proportion with flowers or buds") +
+    geom_point(alpha = 0.3) + 
+    geom_line(alpha = 0.3) +
+    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
+    geom_smooth(data = filter(prop_sppyr, spp == "A. palmeri", yr == "All years"),
+                aes(x = date_generic, y = prop_flower), color = "black", 
+                method = "loess", se = FALSE,  span = 0.25) +
+    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "A. palmeri",
+             hjust = 1, vjust = 1, fontface = 2) +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          legend.title = element_blank()) +
+    guides(color = guide_legend(nrow = 1))
+  # Proportion of plants with open flowers
+  palm_of <- ggplot(data = filter(prop_sppyr, spp == "A. palmeri", yr != "All years"),
+                    aes(x = date_generic, y = prop_open, group = yr, color = yr)) +
+    labs(x = "", y = "Proportion with open flowers") +
+    geom_point(alpha = 0.3) + 
+    geom_line(alpha = 0.3) +
+    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
+    geom_smooth(data = filter(prop_sppyr, spp == "A. palmeri", yr == "All years"),
+                aes(x = date_generic, y = prop_open), color = "black", 
+                method = "loess", se = FALSE,  span = 0.25) +
+    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "A. palmeri",
+             hjust = 1, vjust = 1, fontface = 2) +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          legend.title = element_blank()) +
+    guides(color = guide_legend(nrow = 1))
+
+# Plot curves for A. parryi  
+  # Proportion of plants with flowers or buds
+  parr_fl <- ggplot(data = filter(prop_sppyr, spp == "A. parryi", yr != "All years"),
+                    aes(x = date_generic, y = prop_flower, group = yr, color = yr)) +
+    labs(x = "", y = "Proportion with flowers or buds") +
+    geom_point(alpha = 0.3) + 
+    geom_line(alpha = 0.3) +
+    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
+    geom_smooth(data = filter(prop_sppyr, spp == "A. parryi", yr == "All years"),
+                aes(x = date_generic, y = prop_flower), color = "black", 
+                method = "loess", se = FALSE,  span = 0.25) +
+    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "A. parryi",
+             hjust = 1, vjust = 1, fontface = 2) +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          legend.title = element_blank()) +
+    guides(color = guide_legend(nrow = 1))
+  # Proportion of plants with open flowers
+  parr_of <- ggplot(data = filter(prop_sppyr, spp == "A. parryi", yr != "All years"),
+                    aes(x = date_generic, y = prop_open, group = yr, color = yr)) +
+    labs(x = "", y = "Proportion with open flowers") +
+    geom_point(alpha = 0.3) + 
+    geom_line(alpha = 0.3) +
+    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
+    geom_smooth(data = filter(prop_sppyr, spp == "A. parryi", yr == "All years"),
+                aes(x = date_generic, y = prop_open), color = "black", 
+                method = "loess", se = FALSE,  span = 0.25) +
+    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "A. parryi",
+             hjust = 1, vjust = 1, fontface = 2) +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          legend.title = element_blank()) +
+    guides(color = guide_legend(nrow = 1))
+
+# Plot curves for A. chrysanthus  
+  # Proportion of plants with flowers or buds
+  chry_fl <- ggplot(data = filter(prop_sppyr, spp == "A. chrysanthus", yr != "All years"),
+                    aes(x = date_generic, y = prop_flower, group = yr, color = yr)) +
+    labs(x = "", y = "Proportion with flowers or buds") +
+    geom_point(alpha = 0.3) + 
+    geom_line(alpha = 0.3) +
+    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
+    geom_smooth(data = filter(prop_sppyr, spp == "A. chrysanthus", yr == "All years"),
+                aes(x = date_generic, y = prop_flower), color = "black", 
+                method = "loess", se = FALSE,  span = 0.25) +
+    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "A. chrysanthus",
+             hjust = 1, vjust = 1, fontface = 2) +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          legend.title = element_blank()) +
+    guides(color = guide_legend(nrow = 1))
+  # Proportion of plants with open flowers
+  chry_of <- ggplot(data = filter(prop_sppyr, spp == "A. chrysanthus", yr != "All years"),
+                    aes(x = date_generic, y = prop_open, group = yr, color = yr)) +
+    labs(x = "", y = "Proportion with open flowers") +
+    geom_point(alpha = 0.3) + 
+    geom_line(alpha = 0.3) +
+    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
+    geom_smooth(data = filter(prop_sppyr, spp == "A. chrysanthus", yr == "All years"),
+                aes(x = date_generic, y = prop_open), color = "black", 
+                method = "loess", se = FALSE,  span = 0.25) +
+    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "A. chrysanthus",
+             hjust = 1, vjust = 1, fontface = 2) +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          legend.title = element_blank()) +
+    guides(color = guide_legend(nrow = 1))
+  
 # Calculate proportions by week and genus and year
-prop_genusyr <- dat %>%
-  group_by(spp2, yr, wk) %>%
-  summarize(nobs = length(spp),
-            nobs_flower = sum(!is.na(flowers)),
-            prop_flower = round(sum(flowers, na.rm = TRUE) / nobs_flower, 2),
-            nobs_open = sum(!is.na(flowers_open)),
-            prop_open = round(sum(flowers_open, na.rm = TRUE) / nobs_open, 2),
-            .groups = "keep") %>%
-  # Only keep genus/yr/week when there are XX observations?
-  data.frame()
-            
+  prop_genusyr <- dat %>%
+    arrange(spp2, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
+    distinct(ind_id, yr, wk, .keep_all = TRUE) %>%
+    group_by(spp2, yr, wk) %>%
+    summarize(nobs = length(spp),
+              nobs_flower = sum(!is.na(flowers)),
+              prop_flower = round(sum(flowers, na.rm = TRUE) / nobs_flower, 2),
+              nobs_open = sum(!is.na(flowers_open)),
+              prop_open = round(sum(flowers_open, na.rm = TRUE) / nobs_open, 2),
+              .groups = "keep") %>%
+    data.frame()
+  prop_genus <- dat %>%
+    arrange(spp2, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
+    distinct(ind_id, yr, wk, .keep_all = TRUE) %>%
+    group_by(spp2, wk) %>%
+    summarize(nobs = length(spp),
+              nobs_flower = sum(!is.na(flowers)),
+              prop_flower = round(sum(flowers, na.rm = TRUE) / nobs_flower, 2),
+              nobs_open = sum(!is.na(flowers_open)),
+              prop_open = round(sum(flowers_open, na.rm = TRUE) / nobs_open, 2),
+              .groups = "keep") %>%
+    mutate(yr = "All years", .after = "spp2") %>%
+    data.frame()
+  prop_genusyr <- rbind(prop_genusyr, prop_genus) %>%
+    arrange(spp2, yr, wk) %>%
+    mutate(date_generic = parse_date_time(paste(2024, wk, 1, sep="/"), "Y/W/w"),
+           date_generic = as.Date(date_generic)) 
 
+# Plot curves for all Agaves  
+  # Proportion of plants with flowers or buds
+  agave_fl <- ggplot(data = filter(prop_genusyr, spp2 == "agave", yr != "All years"),
+                     aes(x = date_generic, y = prop_flower, group = yr, color = yr)) +
+    labs(x = "", y = "Proportion with flowers or buds") +
+    geom_point(alpha = 0.3) + 
+    geom_line(alpha = 0.3) +
+    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
+    geom_smooth(data = filter(prop_genusyr, spp2 == "agave", yr == "All years"),
+                aes(x = date_generic, y = prop_flower), color = "black", 
+                method = "loess", se = FALSE,  span = 0.25) +
+    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "All agaves",
+             hjust = 1, vjust = 1, fontface = 2) +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          legend.title = element_blank()) +
+    guides(color = guide_legend(nrow = 1))
+  # Proportion of plants with open flowers
+  agave_of <- ggplot(data = filter(prop_genusyr, spp2 == "agave", yr != "All years"),
+                     aes(x = date_generic, y = prop_open, group = yr, color = yr)) +
+    labs(x = "", y = "Proportion with open flowers") +
+    geom_point(alpha = 0.3) + 
+    geom_line(alpha = 0.3) +
+    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
+    geom_smooth(data = filter(prop_genusyr, spp2 == "agave", yr == "All years"),
+                aes(x = date_generic, y = prop_open), color = "black", 
+                method = "loess", se = FALSE,  span = 0.25) +
+    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "All agaves",
+             hjust = 1, vjust = 1, fontface = 2) +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          legend.title = element_blank()) +
+    guides(color = guide_legend(nrow = 1))
+  
+# View all plots
+  plot_grid(sag_fl, sag_of, ncol = 1)    
+  plot_grid(agave_fl, agave_of, ncol = 1)   
+  plot_grid(palm_fl, palm_of, ncol = 1)  
+  plot_grid(parr_fl, parr_of, ncol = 1) 
+  plot_grid(chry_fl, chry_of, ncol = 1) 
+  
