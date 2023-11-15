@@ -31,6 +31,8 @@ dat <- dat %>%
   select(-state)
 
 # Summarize information for each individual plant/patch (n = 649)
+# Including some summaries of intensity data to potentially indicate whether or
+# not patch was categorized correctly.
 indiv <- dat %>%
   group_by(site_id, site_name, ind_id, plant_nickname, spp, species_id, patch,
            lat, lon, elev) %>%
@@ -38,6 +40,11 @@ indiv <- dat %>%
             yr_first = min(yr),
             yr_last = max(yr),
             nobs = length(yr),
+            flowers_up10 = sum(!is.na(i_flowers) & i_flowers %in% c("1: less than 3", "2: 3 to 10")),
+            flowers_up100 = sum(!is.na(i_flowers) & i_flowers == "3: 11 to 100"),
+            flowers_up1000 = sum(!is.na(i_flowers) & i_flowers == "4: 101 to 1,000"),
+            flowers_up10000 = sum(!is.na(i_flowers) & i_flowers == "5: 1,001 to 10,000"),
+            flowers_10000 = sum(!is.na(i_flowers) & i_flowers == "6: More than 10,000"),
             .groups = "keep") %>%
   data.frame()
 
@@ -65,6 +72,29 @@ select(plants, -species_id)
 # Low % of individuals described as patches (2% for saguaro, 5-33% for agaves)
 # A. palmeri and A. chrysantha (goldenflower) with higher mean elevations than 
   # other species (1500, 1361 vs 819-1053 m)
+
+# Summarize data for each species AND patch type
+plantsp <- indiv %>%
+  group_by(spp, patch) %>%
+  summarize(ninds = length(ind_id),
+            flowers_up10 = sum(flowers_up10 > 0),
+            flowers_up100 = sum(flowers_up100 > 0), 
+            flowers_up1000 = sum(flowers_up1000 > 0),
+            flowers_up10000 = sum(flowers_up10000 > 0),
+            flowers_10000 = sum(flowers_10000 > 0),
+            .groups = "keep") %>%
+  data.frame()
+# People are definitely classifying an individual as a patch or not incorrectly
+# For the species we care most about:
+filter(plantsp, spp == "Palmer's century plant")
+  # only 15 of 292 with patch = 1. Lots of instances with patch = NA with 
+  # number of flowers/infloresenses > 100 or > 1,000.
+filter(plantsp, spp == "Parry's agave")
+  # only 9 of 30 with patch = 1. Lots of instances with patch = NA with 
+  # number of flowers/infloresenses > 100 or > 1,000 and even > 10,0000
+filter(plantsp, spp == "saguaro")
+  # 5 of 249 with patch = 1 (which is expected/good). 
+  # For both patch = 1 or NA, max number of flowers = 101 to 1000.
 
 # To look at start/end for each phenophase, add (within yr) observation numbers
 dat <- dat %>%
