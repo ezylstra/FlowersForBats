@@ -220,20 +220,22 @@ prop_sppyr <- dat %>%
          fyear = factor(yr, levels = as.character(2012:2023))) %>% 
   data.frame()
 
-# Same calculations but across all years
-prop_spp <- dat %>%
-  arrange(spp, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
+# Create a dataframe with proportions of all agaves (across species) in each 
+# phenophase
+prop_genusyr <- dat %>%
+  arrange(spp2, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
   distinct(ind_id, yr, wk, .keep_all = TRUE) %>%
-  group_by(spp, wk) %>%
+  group_by(spp2, yr, wk) %>%
   summarize(nobs = length(spp),
             nobs_flower = sum(!is.na(flowers)),
-            prop_flower = round(sum(flowers, na.rm = TRUE) / nobs_flower, 2),
+            prop_flower = sum(flowers, na.rm = TRUE) / nobs_flower,
             nobs_open = sum(!is.na(flowers_open)),
-            prop_open = round(sum(flowers_open, na.rm = TRUE) / nobs_open, 2),
+            prop_open = sum(flowers_open, na.rm = TRUE) / nobs_open,
             .groups = "keep") %>%
   mutate(date_generic = parse_date_time(paste(2024, wk, 1, sep="/"), "Y/W/w"),
          date_generic = as.Date(date_generic),
-         doy = yday(date_generic)) %>% 
+         doy = yday(date_generic),
+         fyear = factor(yr, levels = as.character(2012:2023))) %>% 
   data.frame()
 
 # Saguaros ------------------------------------------------------------------- #
@@ -252,27 +254,26 @@ sagdat <- filter(prop_sppyr, spp == "C. gigantea")
   AIC(sagfl_m1, sagfl_m2)
     # Model with different annual curves is better (by a lot)
 
-  # Make predictions based on model with different annual curves
-  
-  # TODO: Be more careful about the dates we're making predictions for with year-
-  # specific curves.....
-  
+  # Create dataframe for predictions from models with annual curves
   sag_preds <- data.frame(fyear = NA, wks = NA)
-  for (yr %in% unique(sagdat$fyear)) {
-    doys <- do.call(seq, as.list(range(sagdat$wk[sagdat$yr == yr])))
+  for (yr in sort(unique(sagdat$yr))) {
+    min_doy <- min(sagdat$doy[sagdat$yr == yr])
+    max_doy <- max(sagdat$doy[sagdat$yr == yr])
+    max_doy <- ifelse(max_doy > 350, 365, max_doy)
+    doys <- seq(min_doy, max_doy)
     if (yr == min(sagdat$yr)) {
-      sag_preds <- data.frame(fyear = yr)
+      sag_preds <- data.frame(fyear = yr, doy = doys)
+    } else {
+      sag_preds <- rbind(sag_preds, 
+                         data.frame(fyear = yr, doy = doys))
     }
   }
+  sag_preds$fyear <- factor(sag_preds$fyear, levels = as.character(2012:2023))
   
-  
-  sagfl_preds <- expand.grid(doy = 1:365,
-                             fyear = sort(unique(sagdat$fyear)),
-                             KEEP.OUT.ATTRS = FALSE) %>%
-    filter(!(fyear == "2023" & doy > max(sagdat$doy[sagdat$yr == 2023])))
-  sagfl_preds <- cbind(sagfl_preds,
+  # Make predictions based on more complex model
+  sagfl_preds <- cbind(sag_preds,
                        as.data.frame(predict(sagfl_m2, 
-                                             newdata = sagfl_preds,
+                                             newdata = sag_preds,
                                              type = "response", 
                                              se.fit = TRUE))) %>%
     mutate(lcl = fit - 1.96 * se.fit,
@@ -282,10 +283,12 @@ sagdat <- filter(prop_sppyr, spp == "C. gigantea")
          aes(x = doy, y = fit, group = fyear, color = fyear)) +
     scale_color_discrete(name = "Year") +
     geom_line() +
-    labs(y = "Proportion of saguaros with flowers or buds",
-         x = "Day of year")
+    labs(y = "Proportion of plants with flowers or buds",
+         x = "Day of year") +
+    annotate("text", x = 365, y = 0.98, label = "C. gigantea",
+             hjust = 1, vjust = 1, fontface = 2)
   
-  # Make predictions based on all years together
+  # Make predictions based on simpler model
   sagfl_preds1 <- data.frame(doy = 1:365)
   sagfl_preds1 <- cbind(sagfl_preds1,
                         as.data.frame(predict(sagfl_m1, 
@@ -298,7 +301,7 @@ sagdat <- filter(prop_sppyr, spp == "C. gigantea")
   sagfl_plot <- ggplot(sagfl_preds1, aes(x = doy)) +
     geom_ribbon(aes(ymin = lcl, ymax = ucl), color = "gray", alpha = 0.3) +
     geom_line(aes(y = fit)) +
-    labs(y = "Proportion of saguaros with flowers or buds",
+    labs(y = "Proportion of plants with flowers or buds",
          x = "Day of year") +
     geom_point(data = sagdat, 
                aes(x = doy, y = prop_flower, group = fyear, color = fyear),
@@ -306,7 +309,9 @@ sagdat <- filter(prop_sppyr, spp == "C. gigantea")
     geom_line(data = sagdat, 
               aes(x = doy, y = prop_flower, group = fyear, color = fyear),
               alpha = 0.4) +
-    scale_color_discrete(name = "Year")
+    scale_color_discrete(name = "Year") +
+    annotate("text", x = 365, y = 0.98, label = "C. gigantea",
+             hjust = 1, vjust = 1, fontface = 2)
     
 # Open flowers
   # Simple model with same seasonal smooth each year
@@ -321,14 +326,10 @@ sagdat <- filter(prop_sppyr, spp == "C. gigantea")
   AIC(sagof_m1, sagof_m2)
     # Model with different annual curves is better (by a lot)
   
-  # Make predictions based on model with different annual curves
-  sagof_preds <- expand.grid(doy = 1:365,
-                             fyear = sort(unique(sagdat$fyear)),
-                             KEEP.OUT.ATTRS = FALSE) %>%
-    filter(!(fyear == "2023" & doy > max(sagdat$doy[sagdat$yr == 2023])))
-  sagof_preds <- cbind(sagof_preds,
+  # Make predictions based on more complex model
+  sagof_preds <- cbind(sag_preds,
                        as.data.frame(predict(sagof_m2, 
-                                             newdata = sagof_preds,
+                                             newdata = sag_preds,
                                              type = "response", 
                                              se.fit = TRUE))) %>%
     mutate(lcl = fit - 1.96 * se.fit,
@@ -338,8 +339,10 @@ sagdat <- filter(prop_sppyr, spp == "C. gigantea")
                          aes(x = doy, y = fit, group = fyear, color = fyear)) +
     scale_color_discrete(name = "Year") +
     geom_line() +
-    labs(y = "Proportion of saguaro flowers that are open",
-         x = "Day of year")
+    labs(y = "Proportion of flowers that are open",
+         x = "Day of year") +
+    annotate("text", x = 365, y = 0.98, label = "C. gigantea",
+             hjust = 1, vjust = 1, fontface = 2)
   
   # Make predictions based on all years together
   sagof_preds1 <- data.frame(doy = 1:365)
@@ -354,7 +357,7 @@ sagdat <- filter(prop_sppyr, spp == "C. gigantea")
   sagof_plot <- ggplot(sagof_preds1, aes(x = doy)) +
     geom_ribbon(aes(ymin = lcl, ymax = ucl), color = "gray", alpha = 0.3) +
     geom_line(aes(y = fit)) +
-    labs(y = "Proportion of saguaro flowers that are open",
+    labs(y = "Proportion of flowers that are open",
          x = "Day of year") +
     geom_point(data = sagdat, 
                aes(x = doy, y = prop_open, group = fyear, color = fyear),
@@ -362,16 +365,14 @@ sagdat <- filter(prop_sppyr, spp == "C. gigantea")
     geom_line(data = sagdat, 
               aes(x = doy, y = prop_open, group = fyear, color = fyear),
               alpha = 0.4) +
-    scale_color_discrete(name = "Year")
+    scale_color_discrete(name = "Year") +
+    annotate("text", x = 365, y = 0.98, label = "C. gigantea",
+             hjust = 1, vjust = 1, fontface = 2)
 
   # Look at plots with seasonal curve for all years
   plot_grid(sagfl_plot, sagof_plot, ncol = 1)
   # Look at plots with independent curves each year
   plot_grid(sagfl_plotyr, sagof_plotyr, ncol = 1)
-
-# TODO: Be more careful about the dates we're making predictions for with year-
-# specific curves.....
-  
 
 # A. palmeri ----------------------------------------------------------------- #
 palmdat <- filter(prop_sppyr, spp == "A. palmeri")
@@ -389,14 +390,26 @@ palmdat <- filter(prop_sppyr, spp == "A. palmeri")
   AIC(palmfl_m1, palmfl_m2)
     # Model with different annual curves is better (by a lot)
   
-  # Make predictions based on model with different annual curves
-  palmfl_preds <- expand.grid(doy = 1:365,
-                             fyear = sort(unique(palmdat$fyear)),
-                             KEEP.OUT.ATTRS = FALSE) %>%
-    filter(!(fyear == "2023" & doy > max(palmdat$doy[palmdat$yr == 2023])))
-  palmfl_preds <- cbind(palmfl_preds,
+  # Create dataframe for predictions from models with annual curves
+  palm_preds <- data.frame(fyear = NA, wks = NA)
+  for (yr in sort(unique(palmdat$yr))) {
+    min_doy <- min(palmdat$doy[palmdat$yr == yr])
+    max_doy <- max(palmdat$doy[palmdat$yr == yr])
+    max_doy <- ifelse(max_doy > 350, 365, max_doy)
+    doys <- seq(min_doy, max_doy)
+    if (yr == min(palmdat$yr)) {
+      palm_preds <- data.frame(fyear = yr, doy = doys)
+    } else {
+      palm_preds <- rbind(palm_preds, 
+                         data.frame(fyear = yr, doy = doys))
+    }
+  }
+  palm_preds$fyear <- factor(palm_preds$fyear, levels = as.character(2012:2023))
+  
+  # Make predictions based on more complex model
+  palmfl_preds <- cbind(palm_preds,
                        as.data.frame(predict(palmfl_m2, 
-                                             newdata = palmfl_preds,
+                                             newdata = palm_preds,
                                              type = "response", 
                                              se.fit = TRUE))) %>%
     mutate(lcl = fit - 1.96 * se.fit,
@@ -407,11 +420,11 @@ palmdat <- filter(prop_sppyr, spp == "A. palmeri")
     scale_color_discrete(name = "Year") +
     geom_line() +
     labs(y = "Proportion of patches with flowers or buds",
-         x = "Day of year") + 
-    annotate("text", x = 365, y = 0.98, label = "A. parryi",
+         x = "Day of year") +
+    annotate("text", x = 365, y = 0.98, label = "A. palmeri",
              hjust = 1, vjust = 1, fontface = 2)
   
-  # Make predictions based on all years together
+  # Make predictions based on simpler model
   palmfl_preds1 <- data.frame(doy = 1:365)
   palmfl_preds1 <- cbind(palmfl_preds1,
                         as.data.frame(predict(palmfl_m1, 
@@ -433,71 +446,476 @@ palmdat <- filter(prop_sppyr, spp == "A. palmeri")
               aes(x = doy, y = prop_flower, group = fyear, color = fyear),
               alpha = 0.4) +
     scale_color_discrete(name = "Year") +
-    annotate("text", x = 365, y = 0.98, label = "A. parryi",
+    annotate("text", x = 365, y = 0.98, label = "A. palmeri",
              hjust = 1, vjust = 1, fontface = 2)
-    
   
 # Open flowers
   # Simple model with same seasonal smooth each year
-  sagof_m1 <- gam(prop_open ~ s(doy), weights = nobs_open,
-                  data = sagdat, method = "REML", family = binomial)
+  palmof_m1 <- gam(prop_open ~ s(doy), weights = nobs_open,
+                  data = palmdat, method = "REML", family = binomial)
   # Model with an independent seasonal smooth each year
-  sagof_m2 <- gam(prop_open ~ s(doy, by = fyear), weights = nobs_open,
-                  data = sagdat, method = "REML", family = binomial)
+  palmof_m2 <- gam(prop_open ~ s(doy, by = fyear), weights = nobs_open,
+                  data = palmdat, method = "REML", family = binomial)
   # Compare models
-  summary(sagof_m1)
-  summary(sagof_m2)
-  AIC(sagof_m1, sagof_m2)
-  # Model with different annual curves is better (by a lot)
+  summary(palmof_m1)
+  summary(palmof_m2)
+  AIC(palmof_m1, palmof_m2)
+    # Model with different annual curves is better (by a lot)
   
-  # Make predictions based on model with different annual curves
-  sagof_preds <- expand.grid(doy = 1:365,
-                             fyear = sort(unique(sagdat$fyear)),
-                             KEEP.OUT.ATTRS = FALSE) %>%
-    filter(!(fyear == "2023" & doy > max(sagdat$doy[sagdat$yr == 2023])))
-  sagof_preds <- cbind(sagof_preds,
-                       as.data.frame(predict(sagof_m2, 
-                                             newdata = sagof_preds,
+  # Make predictions based on more complex model
+  palmof_preds <- cbind(palm_preds,
+                       as.data.frame(predict(palmof_m2, 
+                                             newdata = palm_preds,
                                              type = "response", 
                                              se.fit = TRUE))) %>%
     mutate(lcl = fit - 1.96 * se.fit,
            ucl = fit + 1.96 * se.fit)
   # Plot predictions
-  sagof_plotyr <- ggplot(data = sagof_preds, 
+  palmof_plotyr <- ggplot(data = palmof_preds, 
                          aes(x = doy, y = fit, group = fyear, color = fyear)) +
     scale_color_discrete(name = "Year") +
     geom_line() +
-    labs(y = "Proportion of saguaro flowers that are open",
-         x = "Day of year")
+    labs(y = "Proportion of flowers that are open",
+         x = "Day of year") +
+    annotate("text", x = 365, y = 0.98, label = "A. palmeri",
+             hjust = 1, vjust = 1, fontface = 2)
   
   # Make predictions based on all years together
-  sagof_preds1 <- data.frame(doy = 1:365)
-  sagof_preds1 <- cbind(sagof_preds1,
-                        as.data.frame(predict(sagof_m1, 
-                                              newdata = sagof_preds1,
+  palmof_preds1 <- data.frame(doy = 1:365)
+  palmof_preds1 <- cbind(palmof_preds1,
+                        as.data.frame(predict(palmof_m1, 
+                                              newdata = palmof_preds1,
                                               type = "response", 
                                               se.fit = TRUE))) %>%
     mutate(lcl = fit - 1.96 * se.fit,
            ucl = fit + 1.96 * se.fit)
   # Plot predictions (with raw data)
-  sagof_plot <- ggplot(sagof_preds1, aes(x = doy)) +
+  palmof_plot <- ggplot(palmof_preds1, aes(x = doy)) +
     geom_ribbon(aes(ymin = lcl, ymax = ucl), color = "gray", alpha = 0.3) +
     geom_line(aes(y = fit)) +
-    labs(y = "Proportion of saguaro flowers that are open",
+    labs(y = "Proportion of flowers that are open",
          x = "Day of year") +
-    geom_point(data = sagdat, 
+    geom_point(data = palmdat, 
                aes(x = doy, y = prop_open, group = fyear, color = fyear),
                alpha = 0.4) +
-    geom_line(data = sagdat, 
+    geom_line(data = palmdat, 
               aes(x = doy, y = prop_open, group = fyear, color = fyear),
               alpha = 0.4) +
-    scale_color_discrete(name = "Year")
+    scale_color_discrete(name = "Year") +
+    annotate("text", x = 365, y = 0.98, label = "A. palmeri",
+             hjust = 1, vjust = 1, fontface = 2)
   
   # Look at plots with seasonal curve for all years
-  plot_grid(sagfl_plot, sagof_plot, ncol = 1)
+  plot_grid(palmfl_plot, palmof_plot, ncol = 1)
   # Look at plots with independent curves each year
-  plot_grid(sagfl_plotyr, sagof_plotyr, ncol = 1)
-  
+  plot_grid(palmfl_plotyr, palmof_plotyr, ncol = 1)
 
+# A. parryi ------------------------------------------------------------------ #
+parrdat <- filter(prop_sppyr, spp == "A. parryi")
   
+# Flowers or buds
+  # Simple model with same seasonal smooth each year
+  parrfl_m1 <- gam(prop_flower ~ s(doy), weights = nobs_flower,
+                   data = parrdat, method = "REML", family = binomial)
+  # Model with an independent seasonal smooth each year
+  parrfl_m2 <- gam(prop_flower ~ s(doy, by = fyear), weights = nobs_flower,
+                   data = parrdat, method = "REML", family = binomial)
+  # Compare models
+  summary(parrfl_m1)
+  summary(parrfl_m2)
+  AIC(parrfl_m1, parrfl_m2)
+    # Model with different annual curves is better
+  
+  # Create dataframe for predictions from models with annual curves
+  parr_preds <- data.frame(fyear = NA, wks = NA)
+  for (yr in sort(unique(parrdat$yr))) {
+    min_doy <- min(parrdat$doy[parrdat$yr == yr])
+    max_doy <- max(parrdat$doy[parrdat$yr == yr])
+    max_doy <- ifelse(max_doy > 350, 365, max_doy)
+    doys <- seq(min_doy, max_doy)
+    if (yr == min(parrdat$yr)) {
+      parr_preds <- data.frame(fyear = yr, doy = doys)
+    } else {
+      parr_preds <- rbind(parr_preds, 
+                          data.frame(fyear = yr, doy = doys))
+    }
+  }
+  parr_preds$fyear <- factor(parr_preds$fyear, levels = as.character(2012:2023))
+  
+  # Make predictions based on more complex model
+  parrfl_preds <- cbind(parr_preds,
+                        as.data.frame(predict(parrfl_m2, 
+                                              newdata = parr_preds,
+                                              type = "response", 
+                                              se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions
+  parrfl_plotyr <- ggplot(data = parrfl_preds, 
+                          aes(x = doy, y = fit, group = fyear, color = fyear)) +
+    scale_color_discrete(name = "Year") +
+    geom_line() +
+    labs(y = "Proportion of patches with flowers or buds",
+         x = "Day of year") +
+    annotate("text", x = 365, y = 0.98, label = "A. parryi",
+             hjust = 1, vjust = 1, fontface = 2)
+  
+  # Make predictions based on simpler model
+  parrfl_preds1 <- data.frame(doy = 1:365)
+  parrfl_preds1 <- cbind(parrfl_preds1,
+                         as.data.frame(predict(parrfl_m1, 
+                                               newdata = parrfl_preds1,
+                                               type = "response", 
+                                               se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions (with raw data)
+  parrfl_plot <- ggplot(parrfl_preds1, aes(x = doy)) +
+    geom_ribbon(aes(ymin = lcl, ymax = ucl), color = "gray", alpha = 0.3) +
+    geom_line(aes(y = fit)) +
+    labs(y = "Proportion of patches with flowers or buds",
+         x = "Day of year") +
+    geom_point(data = parrdat, 
+               aes(x = doy, y = prop_flower, group = fyear, color = fyear),
+               alpha = 0.4) +
+    geom_line(data = parrdat, 
+              aes(x = doy, y = prop_flower, group = fyear, color = fyear),
+              alpha = 0.4) +
+    scale_color_discrete(name = "Year") +
+    annotate("text", x = 365, y = 0.98, label = "A. parryi",
+             hjust = 1, vjust = 1, fontface = 2)
+  
+# Open flowers
+  # Simple model with same seasonal smooth each year
+  parrof_m1 <- gam(prop_open ~ s(doy), weights = nobs_open,
+                   data = parrdat, method = "REML", family = binomial)
+  # Model with an independent seasonal smooth each year
+  parrof_m2 <- gam(prop_open ~ s(doy, by = fyear), weights = nobs_open,
+                   data = parrdat, method = "REML", family = binomial)
+  # Compare models
+  summary(parrof_m1)
+  summary(parrof_m2)
+  AIC(parrof_m1, parrof_m2)
+    # Model with different annual curves is better
+  
+  # Make predictions based on more complex model
+  parrof_preds <- cbind(parr_preds,
+                        as.data.frame(predict(parrof_m2, 
+                                              newdata = parr_preds,
+                                              type = "response", 
+                                              se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions
+  parrof_plotyr <- ggplot(data = parrof_preds, 
+                          aes(x = doy, y = fit, group = fyear, color = fyear)) +
+    scale_color_discrete(name = "Year") +
+    geom_line() +
+    labs(y = "Proportion of flowers that are open",
+         x = "Day of year") +
+    annotate("text", x = 365, y = 0.98, label = "A. parryi",
+             hjust = 1, vjust = 1, fontface = 2)
+  
+  # Make predictions based on all years together
+  parrof_preds1 <- data.frame(doy = 1:365)
+  parrof_preds1 <- cbind(parrof_preds1,
+                         as.data.frame(predict(parrof_m1, 
+                                               newdata = parrof_preds1,
+                                               type = "response", 
+                                               se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions (with raw data)
+  parrof_plot <- ggplot(parrof_preds1, aes(x = doy)) +
+    geom_ribbon(aes(ymin = lcl, ymax = ucl), color = "gray", alpha = 0.3) +
+    geom_line(aes(y = fit)) +
+    labs(y = "Proportion of flowers that are open",
+         x = "Day of year") +
+    geom_point(data = parrdat, 
+               aes(x = doy, y = prop_open, group = fyear, color = fyear),
+               alpha = 0.4) +
+    geom_line(data = parrdat, 
+              aes(x = doy, y = prop_open, group = fyear, color = fyear),
+              alpha = 0.4) +
+    scale_color_discrete(name = "Year") +
+    annotate("text", x = 365, y = 0.98, label = "A. parryi",
+             hjust = 1, vjust = 1, fontface = 2)
+  
+  # Look at plots with seasonal curve for all years
+  plot_grid(parrfl_plot, parrof_plot, ncol = 1)
+  # Look at plots with independent curves each year
+  plot_grid(parrfl_plotyr, parrof_plotyr, ncol = 1)  
 
+# A. chrysanthus ------------------------------------------------------------- #
+chrydat <- filter(prop_sppyr, spp == "A. chrysanthus")
+  
+# Flowers or buds
+  # Simple model with same seasonal smooth each year
+  chryfl_m1 <- gam(prop_flower ~ s(doy), weights = nobs_flower,
+                   data = chrydat, method = "REML", family = binomial)
+  # Model with an independent seasonal smooth each year
+  chryfl_m2 <- gam(prop_flower ~ s(doy, by = fyear), weights = nobs_flower,
+                   data = chrydat, method = "REML", family = binomial)
+  # Compare models
+  summary(chryfl_m1)
+  summary(chryfl_m2)
+  AIC(chryfl_m1, chryfl_m2)
+    # Model with different annual curves is better
+  
+  # Create dataframe for predictions from models with annual curves
+  chry_preds <- data.frame(fyear = NA, wks = NA)
+  for (yr in sort(unique(chrydat$yr))) {
+    min_doy <- min(chrydat$doy[chrydat$yr == yr])
+    max_doy <- max(chrydat$doy[chrydat$yr == yr])
+    max_doy <- ifelse(max_doy > 350, 365, max_doy)
+    doys <- seq(min_doy, max_doy)
+    if (yr == min(chrydat$yr)) {
+      chry_preds <- data.frame(fyear = yr, doy = doys)
+    } else {
+      chry_preds <- rbind(chry_preds, 
+                          data.frame(fyear = yr, doy = doys))
+    }
+  }
+  chry_preds$fyear <- factor(chry_preds$fyear, levels = as.character(2012:2023))
+  
+  # Make predictions based on more complex model
+  chryfl_preds <- cbind(chry_preds,
+                        as.data.frame(predict(chryfl_m2, 
+                                              newdata = chry_preds,
+                                              type = "response", 
+                                              se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions
+  chryfl_plotyr <- ggplot(data = chryfl_preds, 
+                          aes(x = doy, y = fit, group = fyear, color = fyear)) +
+    scale_color_discrete(name = "Year") +
+    geom_line() +
+    labs(y = "Proportion of patches with flowers or buds",
+         x = "Day of year") +
+    annotate("text", x = 365, y = 0.98, label = "A. chrysanthus",
+             hjust = 1, vjust = 1, fontface = 2)
+  
+  # Make predictions based on simpler model
+  chryfl_preds1 <- data.frame(doy = 1:365)
+  chryfl_preds1 <- cbind(chryfl_preds1,
+                         as.data.frame(predict(chryfl_m1, 
+                                               newdata = chryfl_preds1,
+                                               type = "response", 
+                                               se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions (with raw data)
+  chryfl_plot <- ggplot(chryfl_preds1, aes(x = doy)) +
+    geom_ribbon(aes(ymin = lcl, ymax = ucl), color = "gray", alpha = 0.3) +
+    geom_line(aes(y = fit)) +
+    labs(y = "Proportion of patches with flowers or buds",
+         x = "Day of year") +
+    geom_point(data = chrydat, 
+               aes(x = doy, y = prop_flower, group = fyear, color = fyear),
+               alpha = 0.4) +
+    geom_line(data = chrydat, 
+              aes(x = doy, y = prop_flower, group = fyear, color = fyear),
+              alpha = 0.4) +
+    scale_color_discrete(name = "Year") +
+    annotate("text", x = 365, y = 0.98, label = "A. chrysanthus",
+             hjust = 1, vjust = 1, fontface = 2)
+  
+# Open flowers
+  # Simple model with same seasonal smooth each year
+  chryof_m1 <- gam(prop_open ~ s(doy), weights = nobs_open,
+                   data = chrydat, method = "REML", family = binomial)
+  # Model with an independent seasonal smooth each year
+  chryof_m2 <- gam(prop_open ~ s(doy, by = fyear), weights = nobs_open,
+                   data = chrydat, method = "REML", family = binomial)
+  # Compare models
+  summary(chryof_m1)
+  summary(chryof_m2)
+  AIC(chryof_m1, chryof_m2)
+    # Model with different annual curves is better
+  
+  # Make predictions based on more complex model
+  chryof_preds <- cbind(chry_preds,
+                        as.data.frame(predict(chryof_m2, 
+                                              newdata = chry_preds,
+                                              type = "response", 
+                                              se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions
+  chryof_plotyr <- ggplot(data = chryof_preds, 
+                          aes(x = doy, y = fit, group = fyear, color = fyear)) +
+    scale_color_discrete(name = "Year") +
+    geom_line() +
+    labs(y = "Proportion of flowers that are open",
+         x = "Day of year") +
+    annotate("text", x = 365, y = 0.98, label = "A. chrysanthus",
+             hjust = 1, vjust = 1, fontface = 2)
+  
+  # Make predictions based on all years together
+  chryof_preds1 <- data.frame(doy = 1:365)
+  chryof_preds1 <- cbind(chryof_preds1,
+                         as.data.frame(predict(chryof_m1, 
+                                               newdata = chryof_preds1,
+                                               type = "response", 
+                                               se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions (with raw data)
+  chryof_plot <- ggplot(chryof_preds1, aes(x = doy)) +
+    geom_ribbon(aes(ymin = lcl, ymax = ucl), color = "gray", alpha = 0.3) +
+    geom_line(aes(y = fit)) +
+    labs(y = "Proportion of flowers that are open",
+         x = "Day of year") +
+    geom_point(data = chrydat, 
+               aes(x = doy, y = prop_open, group = fyear, color = fyear),
+               alpha = 0.4) +
+    geom_line(data = chrydat, 
+              aes(x = doy, y = prop_open, group = fyear, color = fyear),
+              alpha = 0.4) +
+    scale_color_discrete(name = "Year") +
+    annotate("text", x = 365, y = 0.98, label = "A. chrysanthus",
+             hjust = 1, vjust = 1, fontface = 2)
+  
+  # Look at plots with seasonal curve for all years
+  plot_grid(chryfl_plot, chryof_plot, ncol = 1)
+  # Look at plots with independent curves each year
+  plot_grid(chryfl_plotyr, chryof_plotyr, ncol = 1)  
+  
+# All agaves ----------------------------------------------------------------- #
+agavedat <- filter(prop_genusyr, spp2 == "agave")
+  
+# Flowers or buds
+  # Simple model with same seasonal smooth each year
+  agavefl_m1 <- gam(prop_flower ~ s(doy), weights = nobs_flower,
+                   data = agavedat, method = "REML", family = binomial)
+  # Model with an independent seasonal smooth each year
+  agavefl_m2 <- gam(prop_flower ~ s(doy, by = fyear), weights = nobs_flower,
+                   data = agavedat, method = "REML", family = binomial)
+  # Compare models
+  summary(agavefl_m1)
+  summary(agavefl_m2)
+  AIC(agavefl_m1, agavefl_m2)
+    # Model with different annual curves is better (by a lot)
+  
+  # Create dataframe for predictions from models with annual curves
+  agave_preds <- data.frame(fyear = NA, wks = NA)
+  for (yr in sort(unique(agavedat$yr))) {
+    min_doy <- min(agavedat$doy[agavedat$yr == yr])
+    max_doy <- max(agavedat$doy[agavedat$yr == yr])
+    max_doy <- ifelse(max_doy > 350, 365, max_doy)
+    doys <- seq(min_doy, max_doy)
+    if (yr == min(agavedat$yr)) {
+      agave_preds <- data.frame(fyear = yr, doy = doys)
+    } else {
+      agave_preds <- rbind(agave_preds, 
+                          data.frame(fyear = yr, doy = doys))
+    }
+  }
+  agave_preds$fyear <- factor(agave_preds$fyear, levels = as.character(2012:2023))
+  
+  # Make predictions based on more complex model
+  agavefl_preds <- cbind(agave_preds,
+                        as.data.frame(predict(agavefl_m2, 
+                                              newdata = agave_preds,
+                                              type = "response", 
+                                              se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions
+  agavefl_plotyr <- ggplot(data = agavefl_preds, 
+                          aes(x = doy, y = fit, group = fyear, color = fyear)) +
+    scale_color_discrete(name = "Year") +
+    geom_line() +
+    labs(y = "Proportion of patches with flowers or buds",
+         x = "Day of year") +
+    annotate("text", x = 365, y = 0.98, label = "Agave spp.",
+             hjust = 1, vjust = 1, fontface = 2)
+  
+  # Make predictions based on simpler model
+  agavefl_preds1 <- data.frame(doy = 1:365)
+  agavefl_preds1 <- cbind(agavefl_preds1,
+                         as.data.frame(predict(agavefl_m1, 
+                                               newdata = agavefl_preds1,
+                                               type = "response", 
+                                               se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions (with raw data)
+  agavefl_plot <- ggplot(agavefl_preds1, aes(x = doy)) +
+    geom_ribbon(aes(ymin = lcl, ymax = ucl), color = "gray", alpha = 0.3) +
+    geom_line(aes(y = fit)) +
+    labs(y = "Proportion of patches with flowers or buds",
+         x = "Day of year") +
+    geom_point(data = agavedat, 
+               aes(x = doy, y = prop_flower, group = fyear, color = fyear),
+               alpha = 0.4) +
+    geom_line(data = agavedat, 
+              aes(x = doy, y = prop_flower, group = fyear, color = fyear),
+              alpha = 0.4) +
+    scale_color_discrete(name = "Year") +
+    annotate("text", x = 365, y = 0.98, label = "Agave spp.",
+             hjust = 1, vjust = 1, fontface = 2)
+  
+  # Open flowers
+  # Simple model with same seasonal smooth each year
+  agaveof_m1 <- gam(prop_open ~ s(doy), weights = nobs_open,
+                   data = agavedat, method = "REML", family = binomial)
+  # Model with an independent seasonal smooth each year
+  agaveof_m2 <- gam(prop_open ~ s(doy, by = fyear), weights = nobs_open,
+                   data = agavedat, method = "REML", family = binomial)
+  # Compare models
+  summary(agaveof_m1)
+  summary(agaveof_m2)
+  AIC(agaveof_m1, agaveof_m2)
+  # Model with different annual curves is better
+  
+  # Make predictions based on more complex model
+  agaveof_preds <- cbind(agave_preds,
+                        as.data.frame(predict(agaveof_m2, 
+                                              newdata = agave_preds,
+                                              type = "response", 
+                                              se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions
+  agaveof_plotyr <- ggplot(data = agaveof_preds, 
+                          aes(x = doy, y = fit, group = fyear, color = fyear)) +
+    scale_color_discrete(name = "Year") +
+    geom_line() +
+    labs(y = "Proportion of flowers that are open",
+         x = "Day of year") +
+    annotate("text", x = 365, y = 0.98, label = "Agave spp.",
+             hjust = 1, vjust = 1, fontface = 2)
+  
+  # Make predictions based on all years together
+  agaveof_preds1 <- data.frame(doy = 1:365)
+  agaveof_preds1 <- cbind(agaveof_preds1,
+                         as.data.frame(predict(agaveof_m1, 
+                                               newdata = agaveof_preds1,
+                                               type = "response", 
+                                               se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions (with raw data)
+  agaveof_plot <- ggplot(agaveof_preds1, aes(x = doy)) +
+    geom_ribbon(aes(ymin = lcl, ymax = ucl), color = "gray", alpha = 0.3) +
+    geom_line(aes(y = fit)) +
+    labs(y = "Proportion of flowers that are open",
+         x = "Day of year") +
+    geom_point(data = agavedat, 
+               aes(x = doy, y = prop_open, group = fyear, color = fyear),
+               alpha = 0.4) +
+    geom_line(data = agavedat, 
+              aes(x = doy, y = prop_open, group = fyear, color = fyear),
+              alpha = 0.4) +
+    scale_color_discrete(name = "Year") +
+    annotate("text", x = 365, y = 0.98, label = "Agave spp.",
+             hjust = 1, vjust = 1, fontface = 2)
+  
+  # Look at plots with seasonal curve for all years
+  plot_grid(agavefl_plot, agaveof_plot, ncol = 1)
+  # Look at plots with independent curves each year
+  plot_grid(agavefl_plotyr, agaveof_plotyr, ncol = 1)   
+  
+  
