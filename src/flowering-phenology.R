@@ -1,13 +1,14 @@
 # Flowering phenology, based on NPN data
 # Erin Zylstra
 # ezylstra@arizona.edu
-# 2023-11-15
+# 2023-11-16
 
 library(dplyr)
 library(lubridate)
 library(tidyr)
 library(ggplot2)
 library(cowplot)
+library(mgcv)
 
 rm(list = ls())
 
@@ -153,45 +154,38 @@ ind_yr %>%
          prop5 = round(n_5obsperyr / n_indiv, 2)) %>%
   data.frame()
 
-# First day of year with flowers or buds, open flowers
-par(mfrow = c(2, 1))
-hist(ind_yr$flowers_first, breaks = 50, xlim = c(0, 365), xlab = "Day of year",
-     main = "First day of year with flowers")
-hist(ind_yr$open_first, breaks = 50, xlim = c(0, 365), xlab = "Day of year",
-     main = "First day of year with open flowers")
-
 # First day of year with flowers, by species
-par(mfrow = c(4, 1), mar = c(2, 4, 2, 1))
-hist(ind_yr$flowers_first[ind_yr$spp == "C. gigantea"], breaks = 25, 
-     xlim = c(0, 365), main = "C. gigantea", xlab = "")
-hist(ind_yr$flowers_first[ind_yr$spp == "A. palmeri"], breaks = 25, 
-     xlim = c(0, 365), main = "A. palmeri", xlab = "")
-hist(ind_yr$flowers_first[ind_yr$spp == "A. parryi"], breaks = 25, 
-     xlim = c(0, 365), main = "A. parryi", xlab = "")
-hist(ind_yr$flowers_first[ind_yr$spp == "A. chrysanthus"], breaks = 25, 
-     xlim = c(0, 365), main = "A. chrysanthus", xlab = "")
+# par(mfrow = c(4, 1), mar = c(2, 4, 2, 1))
+# hist(ind_yr$flowers_first[ind_yr$spp == "C. gigantea"], breaks = 25, 
+#      xlim = c(0, 365), main = "C. gigantea", xlab = "")
+# hist(ind_yr$flowers_first[ind_yr$spp == "A. palmeri"], breaks = 25, 
+#      xlim = c(0, 365), main = "A. palmeri", xlab = "")
+# hist(ind_yr$flowers_first[ind_yr$spp == "A. parryi"], breaks = 25, 
+#      xlim = c(0, 365), main = "A. parryi", xlab = "")
+# hist(ind_yr$flowers_first[ind_yr$spp == "A. chrysanthus"], breaks = 25, 
+#      xlim = c(0, 365), main = "A. chrysanthus", xlab = "")
 
 # First day of year with open flowers, by species
-par(mfrow = c(4, 1), mar = c(2, 4, 2, 1))
-hist(ind_yr$open_first[ind_yr$spp == "C. gigantea"], breaks = 25, 
-     xlim = c(0, 365), main = "C. gigantea", xlab = "")
-hist(ind_yr$open_first[ind_yr$spp == "A. palmeri"], breaks = 25, 
-     xlim = c(0, 365), main = "A. palmeri", xlab = "")
-hist(ind_yr$open_first[ind_yr$spp == "A. parryi"], breaks = 25, 
-     xlim = c(0, 365), main = "A. parryi", xlab = "")
-hist(ind_yr$open_first[ind_yr$spp == "A. chrysanthus"], breaks = 25, 
-     xlim = c(0, 365), main = "A. chrysanthus", xlab = "")
+# par(mfrow = c(4, 1), mar = c(2, 4, 2, 1))
+# hist(ind_yr$open_first[ind_yr$spp == "C. gigantea"], breaks = 25, 
+#      xlim = c(0, 365), main = "C. gigantea", xlab = "")
+# hist(ind_yr$open_first[ind_yr$spp == "A. palmeri"], breaks = 25, 
+#      xlim = c(0, 365), main = "A. palmeri", xlab = "")
+# hist(ind_yr$open_first[ind_yr$spp == "A. parryi"], breaks = 25, 
+#      xlim = c(0, 365), main = "A. parryi", xlab = "")
+# hist(ind_yr$open_first[ind_yr$spp == "A. chrysanthus"], breaks = 25, 
+#      xlim = c(0, 365), main = "A. chrysanthus", xlab = "")
 
 # Plotting all observation dates when 50-74% of flowers are open, by species
-par(mfrow = c(4, 1), mar = c(2, 4, 2, 1))
-hist(dat$doy[which(dat$spp == "C. gigantea" & dat$i_flowers_open == "4: 50-74%")], 
-     breaks = 25, xlim = c(0, 365), main = "C. gigantea", xlab = "")
-hist(dat$doy[which(dat$spp == "A. palmeri" & dat$i_flowers_open == "4: 50-74%")], 
-     breaks = 25, xlim = c(0, 365), main = "A. palmeri", xlab = "")
-hist(dat$doy[which(dat$spp == "A. palmeri" & dat$i_flowers_open == "4: 50-74%")], 
-     breaks = 25, xlim = c(0, 365), main = "A. parryi", xlab = "")
-hist(dat$doy[which(dat$spp == "A. chrysanthus" & dat$i_flowers_open == "4: 50-74%")], 
-     breaks = 25, xlim = c(0, 365), main = "A. chrysanthus", xlab = "")
+# par(mfrow = c(4, 1), mar = c(2, 4, 2, 1))
+# hist(dat$doy[which(dat$spp == "C. gigantea" & dat$i_flowers_open == "4: 50-74%")], 
+#      breaks = 25, xlim = c(0, 365), main = "C. gigantea", xlab = "")
+# hist(dat$doy[which(dat$spp == "A. palmeri" & dat$i_flowers_open == "4: 50-74%")], 
+#      breaks = 25, xlim = c(0, 365), main = "A. palmeri", xlab = "")
+# hist(dat$doy[which(dat$spp == "A. palmeri" & dat$i_flowers_open == "4: 50-74%")], 
+#      breaks = 25, xlim = c(0, 365), main = "A. parryi", xlab = "")
+# hist(dat$doy[which(dat$spp == "A. chrysanthus" & dat$i_flowers_open == "4: 50-74%")], 
+#      breaks = 25, xlim = c(0, 365), main = "A. chrysanthus", xlab = "")
 
 # Need to look at things proportionally, since the number of observations in 
 # each phenophase likely reflects effort as much as differences in prevalence...
@@ -201,241 +195,309 @@ dat <- dat %>%
   mutate(wk = isoweek(obsdate),
          spp2 = ifelse(spp == "C. gigantea", "saguaro", "agave"))
 
+# ---------------------------------------------------------------------------- #
 # Calculate proportions of plants/patches in each phenophase by week and year
-  # First, will want to remove multiple observations of the same individual in
-  # the same week. Sort so the more advanced phenophase gets kept (if more 
-  # than one value in a week)
-  prop_sppyr <- dat %>%
-    arrange(spp, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
-    distinct(ind_id, yr, wk, .keep_all = TRUE) %>%
-    group_by(spp, yr, wk) %>%
-    summarize(nobs = length(spp),
-              nobs_flower = sum(!is.na(flowers)),
-              prop_flower = round(sum(flowers, na.rm = TRUE) / nobs_flower, 2),
-              nobs_open = sum(!is.na(flowers_open)),
-              prop_open = round(sum(flowers_open, na.rm = TRUE) / nobs_open, 2),
-              .groups = "keep") %>%
-    data.frame()
-  prop_spp <- dat %>%
-    arrange(spp, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
-    distinct(ind_id, yr, wk, .keep_all = TRUE) %>%
-    group_by(spp, wk) %>%
-    summarize(nobs = length(spp),
-              nobs_flower = sum(!is.na(flowers)),
-              prop_flower = round(sum(flowers, na.rm = TRUE) / nobs_flower, 2),
-              nobs_open = sum(!is.na(flowers_open)),
-              prop_open = round(sum(flowers_open, na.rm = TRUE) / nobs_open, 2),
-              .groups = "keep") %>%
-    mutate(yr = "All years", .after = "spp") %>%
-    data.frame()
-  prop_sppyr <- rbind(prop_sppyr, prop_spp) %>%
-    arrange(spp, yr, wk) %>%
-    mutate(date_generic = parse_date_time(paste(2024, wk, 1, sep="/"), "Y/W/w"),
-           date_generic = as.Date(date_generic)) 
+# and use GAMs to describe seasonal patterns
+# ---------------------------------------------------------------------------- #
 
-# Plot curves for saguaro
-  # Proportion of plants with flowers or buds
-  sag_fl <- ggplot(data = filter(prop_sppyr, spp == "C. gigantea", yr != "All years"),
-                   aes(x = date_generic, y = prop_flower, group = yr, color = yr)) +
-    labs(x = "", y = "Proportion with flowers or buds") +
-    geom_point(alpha = 0.3) + 
-    geom_line(alpha = 0.3) +
-    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
-    geom_smooth(data = filter(prop_sppyr, spp == "C. gigantea", yr == "All years"),
-                aes(x = date_generic, y = prop_flower), color = "black", 
-                method = "loess", se = FALSE,  span = 0.25) +
-    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "Saguaros",
-             hjust = 1, vjust = 1, fontface = 2) +
-    theme_bw() +
-    theme(legend.position = "bottom",
-          legend.title = element_blank()) +
-    guides(color = guide_legend(nrow = 2))
-  # Proportion of plants with open flowers
-  sag_of <- ggplot(data = filter(prop_sppyr, spp == "C. gigantea", yr != "All years"),
-                   aes(x = date_generic, y = prop_open, group = yr, color = yr)) +
-    labs(x = "", y = "Proportion with open flowers") +
-    geom_point(alpha = 0.3) + 
-    geom_line(alpha = 0.3) +
-    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
-    geom_smooth(data = filter(prop_sppyr, spp == "C. gigantea", yr == "All years"),
-                aes(x = date_generic, y = prop_open), color = "black", 
-                method = "loess", se = FALSE,  span = 0.25) +
-    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "Saguaros",
-             hjust = 1, vjust = 1, fontface = 2) +
-    theme_bw() +
-    theme(legend.position = "bottom",
-          legend.title = element_blank()) +
-    guides(color = guide_legend(nrow = 2))
+# First, will want to remove multiple observations of the same individual in
+# the same week. Sort so the more advanced phenophase gets kept (if more 
+# than one value in a week)
 
-# Plot curves for A. palmeri  
-  # Proportion of plants with flowers or buds
-  palm_fl <- ggplot(data = filter(prop_sppyr, spp == "A. palmeri", yr != "All years"),
-                    aes(x = date_generic, y = prop_flower, group = yr, color = yr)) +
-    labs(x = "", y = "Proportion with flowers or buds") +
-    geom_point(alpha = 0.3) + 
-    geom_line(alpha = 0.3) +
-    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
-    geom_smooth(data = filter(prop_sppyr, spp == "A. palmeri", yr == "All years"),
-                aes(x = date_generic, y = prop_flower), color = "black", 
-                method = "loess", se = FALSE,  span = 0.25) +
-    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "A. palmeri",
-             hjust = 1, vjust = 1, fontface = 2) +
-    theme_bw() +
-    theme(legend.position = "bottom",
-          legend.title = element_blank()) +
-    guides(color = guide_legend(nrow = 1))
-  # Proportion of plants with open flowers
-  palm_of <- ggplot(data = filter(prop_sppyr, spp == "A. palmeri", yr != "All years"),
-                    aes(x = date_generic, y = prop_open, group = yr, color = yr)) +
-    labs(x = "", y = "Proportion with open flowers") +
-    geom_point(alpha = 0.3) + 
-    geom_line(alpha = 0.3) +
-    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
-    geom_smooth(data = filter(prop_sppyr, spp == "A. palmeri", yr == "All years"),
-                aes(x = date_generic, y = prop_open), color = "black", 
-                method = "loess", se = FALSE,  span = 0.25) +
-    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "A. palmeri",
-             hjust = 1, vjust = 1, fontface = 2) +
-    theme_bw() +
-    theme(legend.position = "bottom",
-          legend.title = element_blank()) +
-    guides(color = guide_legend(nrow = 1))
+prop_sppyr <- dat %>%
+  arrange(spp, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
+  distinct(ind_id, yr, wk, .keep_all = TRUE) %>%
+  group_by(spp, yr, wk) %>%
+  summarize(nobs = length(spp),
+            nobs_flower = sum(!is.na(flowers)),
+            prop_flower = sum(flowers, na.rm = TRUE) / nobs_flower,
+            nobs_open = sum(!is.na(flowers_open)),
+            prop_open = sum(flowers_open, na.rm = TRUE) / nobs_open,
+            .groups = "keep") %>%
+  mutate(date_generic = parse_date_time(paste(2024, wk, 1, sep="/"), "Y/W/w"),
+         date_generic = as.Date(date_generic),
+         doy = yday(date_generic),
+         fyear = factor(yr, levels = as.character(2012:2023))) %>% 
+  data.frame()
 
-# Plot curves for A. parryi  
-  # Proportion of plants with flowers or buds
-  parr_fl <- ggplot(data = filter(prop_sppyr, spp == "A. parryi", yr != "All years"),
-                    aes(x = date_generic, y = prop_flower, group = yr, color = yr)) +
-    labs(x = "", y = "Proportion with flowers or buds") +
-    geom_point(alpha = 0.3) + 
-    geom_line(alpha = 0.3) +
-    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
-    geom_smooth(data = filter(prop_sppyr, spp == "A. parryi", yr == "All years"),
-                aes(x = date_generic, y = prop_flower), color = "black", 
-                method = "loess", se = FALSE,  span = 0.25) +
-    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "A. parryi",
-             hjust = 1, vjust = 1, fontface = 2) +
-    theme_bw() +
-    theme(legend.position = "bottom",
-          legend.title = element_blank()) +
-    guides(color = guide_legend(nrow = 1))
-  # Proportion of plants with open flowers
-  parr_of <- ggplot(data = filter(prop_sppyr, spp == "A. parryi", yr != "All years"),
-                    aes(x = date_generic, y = prop_open, group = yr, color = yr)) +
-    labs(x = "", y = "Proportion with open flowers") +
-    geom_point(alpha = 0.3) + 
-    geom_line(alpha = 0.3) +
-    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
-    geom_smooth(data = filter(prop_sppyr, spp == "A. parryi", yr == "All years"),
-                aes(x = date_generic, y = prop_open), color = "black", 
-                method = "loess", se = FALSE,  span = 0.25) +
-    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "A. parryi",
-             hjust = 1, vjust = 1, fontface = 2) +
-    theme_bw() +
-    theme(legend.position = "bottom",
-          legend.title = element_blank()) +
-    guides(color = guide_legend(nrow = 1))
+# Same calculations but across all years
+prop_spp <- dat %>%
+  arrange(spp, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
+  distinct(ind_id, yr, wk, .keep_all = TRUE) %>%
+  group_by(spp, wk) %>%
+  summarize(nobs = length(spp),
+            nobs_flower = sum(!is.na(flowers)),
+            prop_flower = round(sum(flowers, na.rm = TRUE) / nobs_flower, 2),
+            nobs_open = sum(!is.na(flowers_open)),
+            prop_open = round(sum(flowers_open, na.rm = TRUE) / nobs_open, 2),
+            .groups = "keep") %>%
+  mutate(date_generic = parse_date_time(paste(2024, wk, 1, sep="/"), "Y/W/w"),
+         date_generic = as.Date(date_generic),
+         doy = yday(date_generic)) %>% 
+  data.frame()
 
-# Plot curves for A. chrysanthus  
-  # Proportion of plants with flowers or buds
-  chry_fl <- ggplot(data = filter(prop_sppyr, spp == "A. chrysanthus", yr != "All years"),
-                    aes(x = date_generic, y = prop_flower, group = yr, color = yr)) +
-    labs(x = "", y = "Proportion with flowers or buds") +
-    geom_point(alpha = 0.3) + 
-    geom_line(alpha = 0.3) +
-    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
-    geom_smooth(data = filter(prop_sppyr, spp == "A. chrysanthus", yr == "All years"),
-                aes(x = date_generic, y = prop_flower), color = "black", 
-                method = "loess", se = FALSE,  span = 0.25) +
-    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "A. chrysanthus",
-             hjust = 1, vjust = 1, fontface = 2) +
-    theme_bw() +
-    theme(legend.position = "bottom",
-          legend.title = element_blank()) +
-    guides(color = guide_legend(nrow = 1))
-  # Proportion of plants with open flowers
-  chry_of <- ggplot(data = filter(prop_sppyr, spp == "A. chrysanthus", yr != "All years"),
-                    aes(x = date_generic, y = prop_open, group = yr, color = yr)) +
-    labs(x = "", y = "Proportion with open flowers") +
-    geom_point(alpha = 0.3) + 
-    geom_line(alpha = 0.3) +
-    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
-    geom_smooth(data = filter(prop_sppyr, spp == "A. chrysanthus", yr == "All years"),
-                aes(x = date_generic, y = prop_open), color = "black", 
-                method = "loess", se = FALSE,  span = 0.25) +
-    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "A. chrysanthus",
-             hjust = 1, vjust = 1, fontface = 2) +
-    theme_bw() +
-    theme(legend.position = "bottom",
-          legend.title = element_blank()) +
-    guides(color = guide_legend(nrow = 1))
+# Saguaros ------------------------------------------------------------------- #
+sagdat <- filter(prop_sppyr, spp == "C. gigantea")
+
+# Flowers or buds
+  # Simple model with same seasonal smooth each year
+  sagfl_m1 <- gam(prop_flower ~ s(doy), weights = nobs_flower,
+                  data = sagdat, method = "REML", family = binomial)
+  # Model with an independent seasonal smooth each year
+  sagfl_m2 <- gam(prop_flower ~ s(doy, by = fyear), weights = nobs_flower,
+                  data = sagdat, method = "REML", family = binomial)
+  # Compare models
+  summary(sagfl_m1)
+  summary(sagfl_m2)
+  AIC(sagfl_m1, sagfl_m2)
+    # Model with different annual curves is better (by a lot)
+
+  # Make predictions based on model with different annual curves
   
-# Calculate proportions by week and genus and year
-  prop_genusyr <- dat %>%
-    arrange(spp2, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
-    distinct(ind_id, yr, wk, .keep_all = TRUE) %>%
-    group_by(spp2, yr, wk) %>%
-    summarize(nobs = length(spp),
-              nobs_flower = sum(!is.na(flowers)),
-              prop_flower = round(sum(flowers, na.rm = TRUE) / nobs_flower, 2),
-              nobs_open = sum(!is.na(flowers_open)),
-              prop_open = round(sum(flowers_open, na.rm = TRUE) / nobs_open, 2),
-              .groups = "keep") %>%
-    data.frame()
-  prop_genus <- dat %>%
-    arrange(spp2, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
-    distinct(ind_id, yr, wk, .keep_all = TRUE) %>%
-    group_by(spp2, wk) %>%
-    summarize(nobs = length(spp),
-              nobs_flower = sum(!is.na(flowers)),
-              prop_flower = round(sum(flowers, na.rm = TRUE) / nobs_flower, 2),
-              nobs_open = sum(!is.na(flowers_open)),
-              prop_open = round(sum(flowers_open, na.rm = TRUE) / nobs_open, 2),
-              .groups = "keep") %>%
-    mutate(yr = "All years", .after = "spp2") %>%
-    data.frame()
-  prop_genusyr <- rbind(prop_genusyr, prop_genus) %>%
-    arrange(spp2, yr, wk) %>%
-    mutate(date_generic = parse_date_time(paste(2024, wk, 1, sep="/"), "Y/W/w"),
-           date_generic = as.Date(date_generic)) 
+  # TODO: Be more careful about the dates we're making predictions for with year-
+  # specific curves.....
+  
+  sag_preds <- data.frame(fyear = NA, wks = NA)
+  for (yr %in% unique(sagdat$fyear)) {
+    doys <- do.call(seq, as.list(range(sagdat$wk[sagdat$yr == yr])))
+    if (yr == min(sagdat$yr)) {
+      sag_preds <- data.frame(fyear = yr)
+    }
+  }
+  
+  
+  sagfl_preds <- expand.grid(doy = 1:365,
+                             fyear = sort(unique(sagdat$fyear)),
+                             KEEP.OUT.ATTRS = FALSE) %>%
+    filter(!(fyear == "2023" & doy > max(sagdat$doy[sagdat$yr == 2023])))
+  sagfl_preds <- cbind(sagfl_preds,
+                       as.data.frame(predict(sagfl_m2, 
+                                             newdata = sagfl_preds,
+                                             type = "response", 
+                                             se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions
+  sagfl_plotyr <- ggplot(data = sagfl_preds, 
+         aes(x = doy, y = fit, group = fyear, color = fyear)) +
+    scale_color_discrete(name = "Year") +
+    geom_line() +
+    labs(y = "Proportion of saguaros with flowers or buds",
+         x = "Day of year")
+  
+  # Make predictions based on all years together
+  sagfl_preds1 <- data.frame(doy = 1:365)
+  sagfl_preds1 <- cbind(sagfl_preds1,
+                        as.data.frame(predict(sagfl_m1, 
+                                             newdata = sagfl_preds1,
+                                             type = "response", 
+                                             se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions (with raw data)
+  sagfl_plot <- ggplot(sagfl_preds1, aes(x = doy)) +
+    geom_ribbon(aes(ymin = lcl, ymax = ucl), color = "gray", alpha = 0.3) +
+    geom_line(aes(y = fit)) +
+    labs(y = "Proportion of saguaros with flowers or buds",
+         x = "Day of year") +
+    geom_point(data = sagdat, 
+               aes(x = doy, y = prop_flower, group = fyear, color = fyear),
+               alpha = 0.4) +
+    geom_line(data = sagdat, 
+              aes(x = doy, y = prop_flower, group = fyear, color = fyear),
+              alpha = 0.4) +
+    scale_color_discrete(name = "Year")
+    
+# Open flowers
+  # Simple model with same seasonal smooth each year
+  sagof_m1 <- gam(prop_open ~ s(doy), weights = nobs_open,
+                  data = sagdat, method = "REML", family = binomial)
+  # Model with an independent seasonal smooth each year
+  sagof_m2 <- gam(prop_open ~ s(doy, by = fyear), weights = nobs_open,
+                  data = sagdat, method = "REML", family = binomial)
+  # Compare models
+  summary(sagof_m1)
+  summary(sagof_m2)
+  AIC(sagof_m1, sagof_m2)
+    # Model with different annual curves is better (by a lot)
+  
+  # Make predictions based on model with different annual curves
+  sagof_preds <- expand.grid(doy = 1:365,
+                             fyear = sort(unique(sagdat$fyear)),
+                             KEEP.OUT.ATTRS = FALSE) %>%
+    filter(!(fyear == "2023" & doy > max(sagdat$doy[sagdat$yr == 2023])))
+  sagof_preds <- cbind(sagof_preds,
+                       as.data.frame(predict(sagof_m2, 
+                                             newdata = sagof_preds,
+                                             type = "response", 
+                                             se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions
+  sagof_plotyr <- ggplot(data = sagof_preds, 
+                         aes(x = doy, y = fit, group = fyear, color = fyear)) +
+    scale_color_discrete(name = "Year") +
+    geom_line() +
+    labs(y = "Proportion of saguaro flowers that are open",
+         x = "Day of year")
+  
+  # Make predictions based on all years together
+  sagof_preds1 <- data.frame(doy = 1:365)
+  sagof_preds1 <- cbind(sagof_preds1,
+                        as.data.frame(predict(sagof_m1, 
+                                              newdata = sagof_preds1,
+                                              type = "response", 
+                                              se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions (with raw data)
+  sagof_plot <- ggplot(sagof_preds1, aes(x = doy)) +
+    geom_ribbon(aes(ymin = lcl, ymax = ucl), color = "gray", alpha = 0.3) +
+    geom_line(aes(y = fit)) +
+    labs(y = "Proportion of saguaro flowers that are open",
+         x = "Day of year") +
+    geom_point(data = sagdat, 
+               aes(x = doy, y = prop_open, group = fyear, color = fyear),
+               alpha = 0.4) +
+    geom_line(data = sagdat, 
+              aes(x = doy, y = prop_open, group = fyear, color = fyear),
+              alpha = 0.4) +
+    scale_color_discrete(name = "Year")
 
-# Plot curves for all Agaves  
-  # Proportion of plants with flowers or buds
-  agave_fl <- ggplot(data = filter(prop_genusyr, spp2 == "agave", yr != "All years"),
-                     aes(x = date_generic, y = prop_flower, group = yr, color = yr)) +
-    labs(x = "", y = "Proportion with flowers or buds") +
-    geom_point(alpha = 0.3) + 
-    geom_line(alpha = 0.3) +
-    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
-    geom_smooth(data = filter(prop_genusyr, spp2 == "agave", yr == "All years"),
-                aes(x = date_generic, y = prop_flower), color = "black", 
-                method = "loess", se = FALSE,  span = 0.25) +
-    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "All agaves",
-             hjust = 1, vjust = 1, fontface = 2) +
-    theme_bw() +
-    theme(legend.position = "bottom",
-          legend.title = element_blank()) +
-    guides(color = guide_legend(nrow = 1))
-  # Proportion of plants with open flowers
-  agave_of <- ggplot(data = filter(prop_genusyr, spp2 == "agave", yr != "All years"),
-                     aes(x = date_generic, y = prop_open, group = yr, color = yr)) +
-    labs(x = "", y = "Proportion with open flowers") +
-    geom_point(alpha = 0.3) + 
-    geom_line(alpha = 0.3) +
-    scale_x_date(date_labels = "%m/%d", date_breaks = "4 weeks") +
-    geom_smooth(data = filter(prop_genusyr, spp2 == "agave", yr == "All years"),
-                aes(x = date_generic, y = prop_open), color = "black", 
-                method = "loess", se = FALSE,  span = 0.25) +
-    annotate("text", x = as.Date("2024-12-31"), y = 0.98, label = "All agaves",
-             hjust = 1, vjust = 1, fontface = 2) +
-    theme_bw() +
-    theme(legend.position = "bottom",
-          legend.title = element_blank()) +
-    guides(color = guide_legend(nrow = 1))
+  # Look at plots with seasonal curve for all years
+  plot_grid(sagfl_plot, sagof_plot, ncol = 1)
+  # Look at plots with independent curves each year
+  plot_grid(sagfl_plotyr, sagof_plotyr, ncol = 1)
+
+# TODO: Be more careful about the dates we're making predictions for with year-
+# specific curves.....
   
-# View all plots
-  plot_grid(sag_fl, sag_of, ncol = 1)    
-  plot_grid(agave_fl, agave_of, ncol = 1)   
-  plot_grid(palm_fl, palm_of, ncol = 1)  
-  plot_grid(parr_fl, parr_of, ncol = 1) 
-  plot_grid(chry_fl, chry_of, ncol = 1) 
+
+# A. palmeri ----------------------------------------------------------------- #
+palmdat <- filter(prop_sppyr, spp == "A. palmeri")
   
+# Flowers or buds
+  # Simple model with same seasonal smooth each year
+  palmfl_m1 <- gam(prop_flower ~ s(doy), weights = nobs_flower,
+                  data = palmdat, method = "REML", family = binomial)
+  # Model with an independent seasonal smooth each year
+  palmfl_m2 <- gam(prop_flower ~ s(doy, by = fyear), weights = nobs_flower,
+                  data = palmdat, method = "REML", family = binomial)
+  # Compare models
+  summary(palmfl_m1)
+  summary(palmfl_m2)
+  AIC(palmfl_m1, palmfl_m2)
+    # Model with different annual curves is better (by a lot)
+  
+  # Make predictions based on model with different annual curves
+  palmfl_preds <- expand.grid(doy = 1:365,
+                             fyear = sort(unique(palmdat$fyear)),
+                             KEEP.OUT.ATTRS = FALSE) %>%
+    filter(!(fyear == "2023" & doy > max(palmdat$doy[palmdat$yr == 2023])))
+  palmfl_preds <- cbind(palmfl_preds,
+                       as.data.frame(predict(palmfl_m2, 
+                                             newdata = palmfl_preds,
+                                             type = "response", 
+                                             se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions
+  palmfl_plotyr <- ggplot(data = palmfl_preds, 
+                         aes(x = doy, y = fit, group = fyear, color = fyear)) +
+    scale_color_discrete(name = "Year") +
+    geom_line() +
+    labs(y = "Proportion of patches with flowers or buds",
+         x = "Day of year") + 
+    annotate("text", x = 365, y = 0.98, label = "A. parryi",
+             hjust = 1, vjust = 1, fontface = 2)
+  
+  # Make predictions based on all years together
+  palmfl_preds1 <- data.frame(doy = 1:365)
+  palmfl_preds1 <- cbind(palmfl_preds1,
+                        as.data.frame(predict(palmfl_m1, 
+                                              newdata = palmfl_preds1,
+                                              type = "response", 
+                                              se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions (with raw data)
+  palmfl_plot <- ggplot(palmfl_preds1, aes(x = doy)) +
+    geom_ribbon(aes(ymin = lcl, ymax = ucl), color = "gray", alpha = 0.3) +
+    geom_line(aes(y = fit)) +
+    labs(y = "Proportion of patches with flowers or buds",
+         x = "Day of year") +
+    geom_point(data = palmdat, 
+               aes(x = doy, y = prop_flower, group = fyear, color = fyear),
+               alpha = 0.4) +
+    geom_line(data = palmdat, 
+              aes(x = doy, y = prop_flower, group = fyear, color = fyear),
+              alpha = 0.4) +
+    scale_color_discrete(name = "Year") +
+    annotate("text", x = 365, y = 0.98, label = "A. parryi",
+             hjust = 1, vjust = 1, fontface = 2)
+    
+  
+# Open flowers
+  # Simple model with same seasonal smooth each year
+  sagof_m1 <- gam(prop_open ~ s(doy), weights = nobs_open,
+                  data = sagdat, method = "REML", family = binomial)
+  # Model with an independent seasonal smooth each year
+  sagof_m2 <- gam(prop_open ~ s(doy, by = fyear), weights = nobs_open,
+                  data = sagdat, method = "REML", family = binomial)
+  # Compare models
+  summary(sagof_m1)
+  summary(sagof_m2)
+  AIC(sagof_m1, sagof_m2)
+  # Model with different annual curves is better (by a lot)
+  
+  # Make predictions based on model with different annual curves
+  sagof_preds <- expand.grid(doy = 1:365,
+                             fyear = sort(unique(sagdat$fyear)),
+                             KEEP.OUT.ATTRS = FALSE) %>%
+    filter(!(fyear == "2023" & doy > max(sagdat$doy[sagdat$yr == 2023])))
+  sagof_preds <- cbind(sagof_preds,
+                       as.data.frame(predict(sagof_m2, 
+                                             newdata = sagof_preds,
+                                             type = "response", 
+                                             se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions
+  sagof_plotyr <- ggplot(data = sagof_preds, 
+                         aes(x = doy, y = fit, group = fyear, color = fyear)) +
+    scale_color_discrete(name = "Year") +
+    geom_line() +
+    labs(y = "Proportion of saguaro flowers that are open",
+         x = "Day of year")
+  
+  # Make predictions based on all years together
+  sagof_preds1 <- data.frame(doy = 1:365)
+  sagof_preds1 <- cbind(sagof_preds1,
+                        as.data.frame(predict(sagof_m1, 
+                                              newdata = sagof_preds1,
+                                              type = "response", 
+                                              se.fit = TRUE))) %>%
+    mutate(lcl = fit - 1.96 * se.fit,
+           ucl = fit + 1.96 * se.fit)
+  # Plot predictions (with raw data)
+  sagof_plot <- ggplot(sagof_preds1, aes(x = doy)) +
+    geom_ribbon(aes(ymin = lcl, ymax = ucl), color = "gray", alpha = 0.3) +
+    geom_line(aes(y = fit)) +
+    labs(y = "Proportion of saguaro flowers that are open",
+         x = "Day of year") +
+    geom_point(data = sagdat, 
+               aes(x = doy, y = prop_open, group = fyear, color = fyear),
+               alpha = 0.4) +
+    geom_line(data = sagdat, 
+              aes(x = doy, y = prop_open, group = fyear, color = fyear),
+              alpha = 0.4) +
+    scale_color_discrete(name = "Year")
+  
+  # Look at plots with seasonal curve for all years
+  plot_grid(sagfl_plot, sagof_plot, ncol = 1)
+  # Look at plots with independent curves each year
+  plot_grid(sagfl_plotyr, sagof_plotyr, ncol = 1)
+  
+
+  
+
