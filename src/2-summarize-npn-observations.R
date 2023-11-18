@@ -1,7 +1,7 @@
-# Flowering phenology, based on NPN data
+# Flowering/fruiting phenology, based on NPN data
 # Erin Zylstra
 # ezylstra@arizona.edu
-# 2023-11-16
+# 2023-11-18
 
 library(dplyr)
 library(lubridate)
