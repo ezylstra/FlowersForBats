@@ -195,48 +195,48 @@ dat <- dat %>%
   mutate(wk = isoweek(obsdate),
          spp2 = ifelse(spp == "C. gigantea", "saguaro", "agave"))
 
-# ---------------------------------------------------------------------------- #
-# Calculate proportions of plants/patches in each phenophase by week and year
-# and use GAMs to describe seasonal patterns
-# ---------------------------------------------------------------------------- #
-
-# First, will want to remove multiple observations of the same individual in
-# the same week. Sort so the more advanced phenophase gets kept (if more 
-# than one value in a week)
-
-prop_sppyr <- dat %>%
-  arrange(spp, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
-  distinct(ind_id, yr, wk, .keep_all = TRUE) %>%
-  group_by(spp, yr, wk) %>%
-  summarize(nobs = length(spp),
-            nobs_flower = sum(!is.na(flowers)),
-            prop_flower = sum(flowers, na.rm = TRUE) / nobs_flower,
-            nobs_open = sum(!is.na(flowers_open)),
-            prop_open = sum(flowers_open, na.rm = TRUE) / nobs_open,
-            .groups = "keep") %>%
-  mutate(date_generic = parse_date_time(paste(2024, wk, 1, sep="/"), "Y/W/w"),
-         date_generic = as.Date(date_generic),
-         doy = yday(date_generic),
-         fyear = factor(yr, levels = as.character(2012:2023))) %>% 
-  data.frame()
-
-# Create a dataframe with proportions of all agaves (across species) in each 
-# phenophase
-prop_genusyr <- dat %>%
-  arrange(spp2, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
-  distinct(ind_id, yr, wk, .keep_all = TRUE) %>%
-  group_by(spp2, yr, wk) %>%
-  summarize(nobs = length(spp),
-            nobs_flower = sum(!is.na(flowers)),
-            prop_flower = sum(flowers, na.rm = TRUE) / nobs_flower,
-            nobs_open = sum(!is.na(flowers_open)),
-            prop_open = sum(flowers_open, na.rm = TRUE) / nobs_open,
-            .groups = "keep") %>%
-  mutate(date_generic = parse_date_time(paste(2024, wk, 1, sep="/"), "Y/W/w"),
-         date_generic = as.Date(date_generic),
-         doy = yday(date_generic),
-         fyear = factor(yr, levels = as.character(2012:2023))) %>% 
-  data.frame()
+# # ---------------------------------------------------------------------------- #
+# # Calculate proportions of plants/patches in each phenophase by week and year
+# # and use GAMs to describe seasonal patterns
+# # ---------------------------------------------------------------------------- #
+# 
+# # First, will want to remove multiple observations of the same individual in
+# # the same week. Sort so the more advanced phenophase gets kept (if more 
+# # than one value in a week)
+# 
+# prop_sppyr <- dat %>%
+#   arrange(spp, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
+#   distinct(ind_id, yr, wk, .keep_all = TRUE) %>%
+#   group_by(spp, yr, wk) %>%
+#   summarize(nobs = length(spp),
+#             nobs_flower = sum(!is.na(flowers)),
+#             prop_flower = sum(flowers, na.rm = TRUE) / nobs_flower,
+#             nobs_open = sum(!is.na(flowers_open)),
+#             prop_open = sum(flowers_open, na.rm = TRUE) / nobs_open,
+#             .groups = "keep") %>%
+#   mutate(date_generic = parse_date_time(paste(2024, wk, 1, sep="/"), "Y/W/w"),
+#          date_generic = as.Date(date_generic),
+#          doy = yday(date_generic),
+#          fyear = factor(yr, levels = as.character(2012:2023))) %>% 
+#   data.frame()
+# 
+# # Create a dataframe with proportions of all agaves (across species) in each 
+# # phenophase
+# prop_genusyr <- dat %>%
+#   arrange(spp2, ind_id, yr, wk, desc(flowers), desc(flowers_open)) %>%
+#   distinct(ind_id, yr, wk, .keep_all = TRUE) %>%
+#   group_by(spp2, yr, wk) %>%
+#   summarize(nobs = length(spp),
+#             nobs_flower = sum(!is.na(flowers)),
+#             prop_flower = sum(flowers, na.rm = TRUE) / nobs_flower,
+#             nobs_open = sum(!is.na(flowers_open)),
+#             prop_open = sum(flowers_open, na.rm = TRUE) / nobs_open,
+#             .groups = "keep") %>%
+#   mutate(date_generic = parse_date_time(paste(2024, wk, 1, sep="/"), "Y/W/w"),
+#          date_generic = as.Date(date_generic),
+#          doy = yday(date_generic),
+#          fyear = factor(yr, levels = as.character(2012:2023))) %>% 
+#   data.frame()
 
 # Saguaros ------------------------------------------------------------------- #
 sagdat <- filter(prop_sppyr, spp == "C. gigantea")
@@ -960,117 +960,7 @@ agavedat <- filter(prop_genusyr, spp2 == "agave")
   doy_p_low <- sagof_preds1s$doy[which.min(abs(sagof_preds1s$fit - yp))]
   doy_p_upp <- sagof_preds1e$doy[which.min(abs(sagof_preds1e$fit - yp))]
   paste0("Peak: ", peak_doy, " (", doy_p_low, ", ", doy_p_upp, ")")
-  
-# Evaluating trends (in start of open flower period, for example):
 
-  # Can use the predicted date for start/end/peakcalculated above from each year 
-  # in a simple linear regression (so we'd have sample sizes of 6 or 12, 
-  # depending on the species)
-  
-  # In theory, we could use the first date for individual plants/patches, but the
-  # problem is that some individuals weren't observed until after that period 
-  # began. Could do some filtering to just use those individuals that were
-  # observed on a weekly basis before flowering began or flowers opened, but 
-  # I'm not sure how many individuals that would leave us with.
-  # Use a better version of ind_yr dataframe?
-  ind_yr <- dat %>%
-    group_by(ind_id, yr, spp) %>%
-    summarize(nobs = length(doy),
-              obs_first = min(doy),
-              obs_last = max(doy),
-              days_since_mn = round(mean(days_since, na.rm = TRUE)),
-              nflowers = sum(flowers, na.rm = TRUE),
-              nopen = sum(flowers_open, na.rm = TRUE),
-              nopen50 = sum(i_flowers_open == "4: 50-74%", na.rm = TRUE),
-              nfruit = sum(fruit, na.rm = TRUE),
-              nripe = sum(fruit_ripe, na.rm = TRUE),
-              flowers_first = ifelse(sum(flowers, na.rm = TRUE) > 0,
-                                     min(doy[which(flowers == 1)]), NA),
-              open_first = ifelse(sum(flowers_open, na.rm = TRUE) > 0,
-                                  min(doy[which(flowers_open == 1)]), NA),
-              open50_first = ifelse(sum(i_flowers_open == "4: 50-74%", na.rm = TRUE) > 0,
-                                    min(doy[which(i_flowers_open == "4: 50-74%")]), NA),
-              flowers_last = ifelse(sum(flowers, na.rm = TRUE) > 0,
-                                    max(doy[which(flowers == 1)]), NA),
-              open_last = ifelse(sum(flowers_open, na.rm = TRUE) > 0,
-                                 max(doy[which(flowers_open == 1)]), NA),
-              open50_last = ifelse(sum(i_flowers_open == "4: 50-74%", na.rm = TRUE) > 0,
-                                   max(doy[which(i_flowers_open == "4: 50-74%")]), NA),
-              .groups = "keep") %>%
-    data.frame()
-  # Sample sizes (spp*yr)?
-  count(filter(ind_yr, nobs > 4), spp)
-  # If we require a minimum of 5 obs per year:
-    # 34 and 37 for A. parryi, A. chrysanthus
-    # 307 and 362 for A. palmeri and C. gigantea
-  # Exclude those that weren't monitored until later in the year?
-  hist(ind_yr$obs_first[ind_yr$nobs > 4], breaks = 25)
-    # Maybe limit to those that have a first observation date before the 
-    # estimated peak of the open flower period?
-  
-  # Test run: start of open flower phenophase in saguaros
-  count(filter(ind_yr, spp == "C. gigantea"), yr) # 15-83 plants/yr
-  summary_fl <- ind_yr %>%
-    group_by(spp, yr) %>%
-    summarize(nobs = length(ind_id),
-              mn_flowers_first = round(mean(flowers_first, na.rm = TRUE)),
-              mn_open_first = round(mean(open_first, na.rm = TRUE)),
-              mn_open50_first = round(mean(open50_first, na.rm = TRUE)),
-              mn_flowers_last = round(mean(flowers_last, na.rm = TRUE)),
-              mn_open_last = round(mean(open_last, na.rm = TRUE)),
-              mn_open50_last = round(mean(open50_last, na.rm = TRUE)),
-              .groups = "keep") %>%
-    data.frame()
-    # Sample sizes for A. chrysanthus and parryi really not sufficient to do much
-  
-  sag_fl <- summary_fl %>%
-    filter(spp == "C. gigantea") %>%
-    pivot_longer(cols = mn_flowers_first:mn_open50_last, names_to = "event",
-                 values_to = "doy") %>%
-    mutate(firstlast = ifelse(grepl("first", event), "first", "last"),
-           type = ifelse(grepl("50", event), "open50", 
-                         ifelse(grepl("flowers", event), "flowers", "open"))) %>%
-    data.frame()
-  ggplot(data = sag_fl, aes(x = yr, y = doy, group = type, color = type)) +
-    geom_point() + 
-    geom_line(alpha = 0.2) +
-    facet_grid(rows = vars(firstlast))
-  # Flowering WAY later in 2013 and 2015 (especially initiation of)
-  
-  palm_fl <- summary_fl %>%
-    filter(spp == "A. palmeri") %>%
-    pivot_longer(cols = mn_flowers_first:mn_open50_last, names_to = "event",
-                 values_to = "doy") %>%
-    mutate(firstlast = ifelse(grepl("first", event), "first", "last"),
-           type = ifelse(grepl("50", event), "open50", 
-                         ifelse(grepl("flowers", event), "flowers", "open"))) %>%
-    data.frame()
-  ggplot(data = sag_fl, aes(x = yr, y = doy, group = type, color = type)) +
-    geom_point() + 
-    geom_line(alpha = 0.2) +
-    facet_grid(rows = vars(firstlast))
-  # Flowering WAY later in 2013 and 2015 (especially initiation of)
-  
-  library(lme4)
-  m_sag <- lmer(open_first ~ I(yr - 2012) + (1 | ind_id),
-                data = filter(ind_yr, spp == "C. gigantea"))
-  summary(m_sag)
-  m_sag2 <- lmer(open_first ~ I(yr - 2012) + (1 | ind_id),
-                data = filter(ind_yr, spp == "C. gigantea", !yr %in% c(2013, 2015)))
-  summary(m_sag2)  
-  # Compare predictions
-  cbind(predict(m_sag, newdata = data.frame(yr = 2012:2023, ind_id = 0), re.form = NA),
-        predict(m_sag2, newdata = data.frame(yr = 2012:2023, ind_id = 0), re.form = NA))
-  
-  
-  
-  
-  
-  
-# Do all the same calculations for fruit/fruit_ripe?  
-# Will have to deal with fewer data (ie, more NAs)
-count(dat, flowers); count(dat, flowers_open)
-count(dat, fruit); count(dat, fruit_ripe)
 
 # What about intensity data?
 count(dat, spp, flowers_open, i_flowers_open)
