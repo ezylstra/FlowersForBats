@@ -1,7 +1,7 @@
 # Assessing trends in flowering/fruiting periods
 # Erin Zylstra
 # ezylstra@arizona.edu
-# 2023-11-19
+# 2023-11-20
 
 library(dplyr)
 library(lubridate)
@@ -127,143 +127,111 @@ hist(ind_yr$nobs, breaks = 50, xlab = "Number of observations",
     # C. gigantea: 2012-2023 (first dates), 2012-2022 (last dates)
     # A. palmeri: 2018-2023 (first dates), 2018-2022 (last dates)
 
-# Exclude those that weren't monitored until later in the year?
+# Exclude those that weren't monitored early or late in the year (depending
+# on the question)?
   hist(ind_yr$obs_first[ind_yr$nobs > 4], breaks = 25)
-  # Maybe limit to those that have a first observation date before the 
-  # estimated peak of the open flower period?
+  hist(ind_yr$obs_last[ind_yr$nobs > 4], breaks = 25)
+  hist(ind_yr$obs_first[ind_yr$nobs > 2], breaks = 25)
+  hist(ind_yr$obs_last[ind_yr$nobs > 2], breaks = 25)
+
+# Flowers period (based on GAMs)
+  # C. gigantea average first/last date with > 10% individuals = 79/185 
+  # C. gigantea average date with highest proportion of individuals = 129
+  # A. palmeri average first/last date with > 10% individuals = 128/278
+  # A. palmeri average date with highest proportion of individuals = 187
   
-# Was going to try and look at trends in the start/end of 50% open intensity
-# values, but I'm not sure this makes sense and there's much less data to go on.
+# Open flowers period (based on GAMs)
+  # C. gigantea average first/last date with > 10% individuals = 104/174 
+  # C. gigantea average date with highest proportion of individuals = 135
+  # A. palmeri average first/last date with > 10% individuals = 169/269 
+  # A. palmeri average date with highest proportion of individuals = 205
+
+###############################################################################
   
 # Saguaro flowering -----------------------------------------------------------#
+# Use individuals that were observed at least 3 times in year
+sagdat <- filter(ind_yr, spp == "C. gigantea", nobs > 2)
 
 # Plotting mean first/last dates
-  sag_fl <- summary_fl %>%
-    filter(spp == "C. gigantea") %>%
-    pivot_longer(cols = mn_flowers_first:mn_open50_last, names_to = "event",
-                 values_to = "doy") %>%
-    mutate(firstlast = ifelse(grepl("first", event), "Mean first date", "Mean last date"),
-           type = ifelse(grepl("50", event), "open50", 
-                         ifelse(grepl("flowers", event), "flowers", "open"))) %>%
-    data.frame()
-  ggplot(data = filter(sag_fl, !grepl("50", event)), 
-         aes(x = yr, y = doy, group = type, color = type)) +
-    geom_point() + 
-    geom_line(alpha = 0.2) +
-    labs(x = "Year", y = "Day of year") +
-    scale_color_discrete(name = "C. gigantea") +
-    facet_grid(rows = vars(firstlast))
-    # Flowering much later in 2013 (and to a lesser degree 2015)
+summary_sag_flf <- sagdat %>%
+  # Just individuals observed before open flower peak
+  filter(obs_first < 135) %>%
+  group_by(yr) %>%
+  summarize(nobs_firstdates = length(ind_id),
+            mn_flowers_first = round(mean(flowers_first, na.rm = TRUE)),
+            mn_open_first = round(mean(open_first, na.rm = TRUE)),
+            mn_open50_first = round(mean(open50_first, na.rm = TRUE))) %>%
+  data.frame()
+summary_sag_fll <- sagdat %>%
+  # Just individuals observed after open flower peak
+  filter(obs_last > 135) %>%
+  group_by(yr) %>%
+  summarize(nobs_lastdates = length(ind_id),
+            mn_flowers_last = round(mean(flowers_last, na.rm = TRUE)),
+            mn_open_last = round(mean(open_last, na.rm = TRUE)),
+            mn_open50_last = round(mean(open50_last, na.rm = TRUE))) %>%
+  data.frame()
+summary_sag_fl <- left_join(summary_sag_flf, summary_sag_fll, by = "yr") %>%
+  relocate(nobs_lastdates, .after = "nobs_firstdates") %>%
+  pivot_longer(cols = mn_flowers_first:mn_open50_last, names_to = "event",
+               values_to = "doy") %>%
+  mutate(firstlast = ifelse(grepl("first", event), "Mean first date", "Mean last date"),
+         type = ifelse(grepl("50", event), "open50", 
+                       ifelse(grepl("flowers", event), "flowers", "open"))) %>%
+  data.frame()
+ggplot(data = summary_sag_fl, 
+       aes(x = yr, y = doy, group = type, color = type)) +
+  geom_point() + 
+  geom_line(alpha = 0.2) +
+  labs(x = "Year", y = "Day of year") +
+  scale_color_discrete(name = "C. gigantea") +
+  facet_grid(rows = vars(firstlast))
 
 # Flower or bud phenophase: first date
-  sag_fl_first <- lmer(flowers_first ~ I(yr - 2012) + (1 | ind_id),
-                       data = filter(ind_yr, spp == "C. gigantea")) 
+  sag_fl_first <- lmer(flowers_first ~ I(yr - 2012) + (1 | ind_id), 
+                       data = filter(sagdat, obs_first < 135)) 
   summary(sag_fl_first)
-  # Does removing 2013 change things?  Yes
-  # (have to remove random effects b/c of singularity issues)
-  sag_fl_first2 <- lm(flowers_first ~ I(yr - 2012),
-                      data = filter(ind_yr, spp == "C. gigantea", !yr == 2013)) 
-  summary(sag_fl_first2)
-    # Significant trend towards earlier start to flower phenophase is largely 
-    # driven by late start in 2013
+  # Some evidence of trend earlier
 
 # Open flower phenophase: first date
-  sag_fo_first <- lmer(open_first ~ I(yr - 2012) + (1 | ind_id),
-                       data = filter(ind_yr, spp == "C. gigantea")) 
+  sag_fo_first <- lmer(open_first ~ I(yr - 2012) + (1 | ind_id), 
+                       data = filter(sagdat, obs_first < 135)) 
   summary(sag_fo_first)
-  # Does removing 2013 change things?  Yes
-  sag_fo_first2 <- lmer(open_first ~ I(yr - 2012) + (1 | ind_id),
-                        data = filter(ind_yr, spp == "C. gigantea", !yr == 2013)) 
-  summary(sag_fo_first2)
-    # Significant trend towards earlier open flower phenophase is largely driven 
-    # by late start in 2013
+  # Some evidence of trend earlier
 
 # Flower or bud phenophase: last date
   sag_fl_last <- lmer(flowers_last ~ I(yr - 2012) + (1 | ind_id),
-                       data = filter(ind_yr, spp == "C. gigantea", yr < 2023)) 
+                       data = filter(sagdat, obs_last > 135, yr < 2023)) 
   summary(sag_fl_last)
-  sag_fl_last2 <- lmer(flowers_last ~ I(yr - 2012) + (1 | ind_id),
-                       data = filter(ind_yr, spp == "C. gigantea", !yr == 2013, yr < 2023)) 
-  summary(sag_fl_last2)
-    # Significant trend towards earlier end to flower phenophase largely driven by
-    # late end in 2013
+  # Some evidence of trend earlier
   
 # Open flower phenophase: last date
   sag_fo_last <- lmer(open_last ~ I(yr - 2012) + (1 | ind_id),
-                      data = filter(ind_yr, spp == "C. gigantea", yr < 2023)) 
+                      data = filter(sagdat, obs_last > 135, yr < 2023)) 
   summary(sag_fo_last)
-  # Does removing 2013 change things?  Yes
-  sag_fo_last2 <- lmer(open_last ~ I(yr - 2012) + (1 | ind_id),
-                       data = filter(ind_yr, spp == "C. gigantea", !yr == 2013, yr < 2023)) 
-  summary(sag_fo_last2)
-    # Significant trend towards earlier end to open flower phenophase largely 
-    # driven by late end in 2013
+  # No evidence of trend
 
-# Plot predictions for flower phenophase
+# Predictions: flowers or buds
   newdat_first <- data.frame(yr = seq(2012, 2023, length = 100), ind_id = 0)
   sag_flf_preds <- predictInterval(merMod = sag_fl_first, 
                                    newdata = newdat_first,
                                    level = 0.95, n.sims = 1000,
                                    stat = "mean", type = "linear.prediction",
                                    include.resid.var = FALSE)
-  sag_flf_preds2 <- predict(sag_fl_first2, 
-                            newdata = newdat_first,
-                            interval = "confidence", level = 0.95,
-                            type = "response")
   newdat_last <- data.frame(yr = seq(2012, 2022, length = 80), ind_id = 0)
   sag_fll_preds <- predictInterval(merMod = sag_fl_last, 
                                    newdata = newdat_last,
                                    level = 0.95, n.sims = 1000,
                                    stat = "mean", type = "linear.prediction",
                                    include.resid.var = FALSE)
-  sag_fll_preds2 <- predictInterval(merMod = sag_fl_last2, 
-                                    newdata = newdat_last,
-                                    level = 0.95, n.sims = 1000,
-                                    stat = "mean", type = "linear.prediction",
-                                    include.resid.var = FALSE)
-  sag_flf_preds <- cbind(sag_flf_preds, yr = newdat_first$yr)
-  sag_flf_preds2 <- as.data.frame(cbind(sag_flf_preds2, yr = newdat_first$yr))
-  sag_fll_preds <- cbind(sag_fll_preds, yr = newdat_last$yr)
-  sag_fll_preds2 <- cbind(sag_fll_preds2, yr = newdat_last$yr)
-  
-  sag_flf_plot <- ggplot() +
-    geom_ribbon(data = sag_flf_preds, aes(x = yr, ymin = lwr, ymax = upr), 
-                fill = "black", alpha = 0.3, linetype = 0) +
-    geom_line(data = sag_flf_preds, aes(x = yr, y = fit)) +
-    labs(x = "Year", y = "Mean first flowers day") +
-    geom_ribbon(data = sag_flf_preds2, aes(x = yr, ymin = lwr, ymax = upr), 
-                fill = "blue", alpha = 0.3, linetype = 0) +
-    geom_line(data = sag_flf_preds2, aes(x = yr, y = fit), linetype = 2, color = "blue") +  
-    theme(text = element_text(size = 10)) +
-    annotate("text", x = 2023, y = 150, label = "C. gigantea - All years", 
-             hjust = 1, vjust = 1, fontface = 1) +
-    annotate("text", x = 2023, y = 146, label = "C. gigantea - Excluding 2013", 
-             hjust = 1, vjust = 1, fontface = 1, color = "blue")
-  
-  sag_fll_plot <- ggplot() +
-    geom_ribbon(data = sag_fll_preds, aes(x = yr, ymin = lwr, ymax = upr), 
-                fill = "black", alpha = 0.3, linetype = 0) +
-    geom_line(data = sag_fll_preds, aes(x = yr, y = fit)) +
-    labs(x = "Year", y = "Mean last flowers day") +
-    geom_ribbon(data = sag_fll_preds2, aes(x = yr, ymin = lwr, ymax = upr), 
-                fill = "blue", alpha = 0.3, linetype = 0) +
-    geom_line(data = sag_fll_preds2, aes(x = yr, y = fit), linetype = 2, color = "blue") +  
-    theme(text = element_text(size = 10)) +
-    xlim(c(2012, 2023)) +
-    annotate("text", x = 2023, y = 200, label = "C. gigantea - All years", 
-             hjust = 1, vjust = 1, fontface = 1) +
-    annotate("text", x = 2023, y = 195, label = "C. gigantea - Excluding 2013", 
-             hjust = 1, vjust = 1, fontface = 1, color = "blue")
-  
-  plot_grid(sag_flf_plot, sag_fll_plot, ncol = 1)
-  
-# Plot predictions for open flower phenophase
+  sag_flf_preds <- cbind(sag_flf_preds, yr = newdat_first$yr) %>%
+    mutate(Date = "First")
+  sag_fll_preds <- cbind(sag_fll_preds, yr = newdat_last$yr) %>%
+    mutate(Date = "Last")
+  sag_fl_preds <- rbind(sag_flf_preds, sag_fll_preds)
+
+# Predictions: open flowers
   sag_fof_preds <- predictInterval(merMod = sag_fo_first, 
-                                   newdata = newdat_first,
-                                   level = 0.95, n.sims = 1000,
-                                   stat = "mean", type = "linear.prediction",
-                                   include.resid.var = FALSE)
-  sag_fof_preds2 <- predictInterval(merMod = sag_fo_first2, 
                                    newdata = newdat_first,
                                    level = 0.95, n.sims = 1000,
                                    stat = "mean", type = "linear.prediction",
@@ -273,91 +241,118 @@ hist(ind_yr$nobs, breaks = 50, xlab = "Number of observations",
                                    level = 0.95, n.sims = 1000,
                                    stat = "mean", type = "linear.prediction",
                                    include.resid.var = FALSE)
-  sag_fol_preds2 <- predictInterval(merMod = sag_fo_last2, 
-                                    newdata = newdat_last,
-                                    level = 0.95, n.sims = 1000,
-                                    stat = "mean", type = "linear.prediction",
-                                    include.resid.var = FALSE)
-  sag_fof_preds <- cbind(sag_fof_preds, yr = newdat_first$yr)
-  sag_fof_preds2 <- cbind(sag_fof_preds2, yr = newdat_first$yr)
-  sag_fol_preds <- cbind(sag_fol_preds, yr = newdat_last$yr)
-  sag_fol_preds2 <- cbind(sag_fol_preds2, yr = newdat_last$yr)
-  
-  sag_fof_plot <- ggplot() +
-    geom_ribbon(data = sag_fof_preds, aes(x = yr, ymin = lwr, ymax = upr), 
-                fill = "black", alpha = 0.3, linetype = 0) +
-    geom_line(data = sag_fof_preds, aes(x = yr, y = fit)) +
-    labs(x = "Year", y = "Mean first open flowers day") +
-    geom_ribbon(data = sag_fof_preds2, aes(x = yr, ymin = lwr, ymax = upr), 
-                fill = "blue", alpha = 0.3, linetype = 0) +
-    geom_line(data = sag_fof_preds2, aes(x = yr, y = fit), linetype = 2, color = "blue") +  
+  sag_fof_preds <- cbind(sag_fof_preds, yr = newdat_first$yr) %>%
+    mutate(Date = "First")
+  sag_fol_preds <- cbind(sag_fol_preds, yr = newdat_last$yr) %>%
+    mutate(Date = "Last")
+  sag_fo_preds <- rbind(sag_fof_preds, sag_fol_preds)
+
+# Plot predictions
+  sag_fl_plot <- ggplot(sag_fl_preds, aes(x = yr)) +
+    geom_ribbon(aes(x = yr, ymin = lwr, ymax = upr, group = Date, fill = Date), 
+                alpha = 0.3, linetype = 0) +
+    geom_line(aes(x = yr, y = fit, group = Date, color = Date)) +
+    labs(x = "Year", y = "Mean day of year") +
     theme(text = element_text(size = 10)) +
-    annotate("text", x = 2023, y = 168, label = "C. gigantea - All years", 
-             hjust = 1, vjust = 1, fontface = 1) +
-    annotate("text", x = 2023, y = 162, label = "C. gigantea - Excluding 2013", 
-             hjust = 1, vjust = 1, fontface = 1, color = "blue")
+    scale_color_manual(values = c("forest green", "blue")) +
+    scale_fill_manual(values = c("forest green", "blue")) +
+    theme_bw() +
+    annotate("text", x = 2023, y = 210, label = "C. gigantea, flowers or buds", 
+             hjust = 1, vjust = 1, fontface = 2)
+  sag_fo_plot <- ggplot(sag_fo_preds, aes(x = yr)) +
+    geom_ribbon(aes(x = yr, ymin = lwr, ymax = upr, group = Date, fill = Date), 
+                alpha = 0.3, linetype = 0) +
+    geom_line(aes(x = yr, y = fit, group = Date, color = Date)) +
+    labs(x = "Year", y = "Mean day of year") +
+    theme(text = element_text(size = 10)) +
+    scale_color_manual(values = c("forest green", "blue")) +
+    scale_fill_manual(values = c("forest green", "blue")) +
+    theme_bw() +
+    annotate("text", x = 2023, y = 195, label = "C. gigantea, open flowers", 
+             hjust = 1, vjust = 1, fontface = 2)
+  plot_grid(sag_fl_plot, sag_fo_plot, ncol = 1)
+
+# Flowering intensity: 50-74% of flowers open 
+# (using first date since last dates are often the same or very similar)
+  sag_fo50_first <- lmer(open50_first ~ I(yr - 2012) + (1 | ind_id), 
+                         data = sagdat) 
+  summary(sag_fo50_first)
+  # Negative slope (-1.82), but with huge uncertainty (SE = 1.65)
+
+  # Annual and overall estimates
+  sag_fo50_yr <- lm(open50_first ~ factor(yr), data = sagdat)
+  summary(sag_fo50_yr)
+  sag_fo50_1 <- lm(open50_first ~ 1, data = sagdat)
+  summary(sag_fo50_1)
+  confint(sag_fo50_1)
+  # Overall mean DOY = 150 (SE = 3.9; 95% CI = 143-158)
+  AIC(sag_fo50_yr); AIC(sag_fo50_1) # Very similar...
   
-  sag_fol_plot <- ggplot() +
-    geom_ribbon(data = sag_fol_preds, aes(x = yr, ymin = lwr, ymax = upr), 
-                color = "black", alpha = 0.3, linetype = 0) +
-    geom_line(data = sag_fol_preds, aes(x = yr, y = fit)) +
-    labs(x = "Year", y = "Mean last open flowers day") +
-    geom_ribbon(data = sag_fol_preds2, aes(x = yr, ymin = lwr, ymax = upr), 
-                fill = "blue", alpha = 0.3, linetype = 0) +
-    geom_line(data = sag_fol_preds2, aes(x = yr, y = fit), linetype = 2, color = "blue") +  
-    theme(text = element_text(size = 10)) +    
-    xlim(c(2012, 2023)) +
-    annotate("text", x = 2023, y = 191, label = "C. gigantea - All years", 
-             hjust = 1, vjust = 1, fontface = 1) +
-    annotate("text", x = 2023, y = 185, label = "C. gigantea - Excluding 2013", 
-             hjust = 1, vjust = 1, fontface = 1, color = "blue")
-
-  plot_grid(sag_fof_plot, sag_fol_plot, ncol = 1)
-
 # A. palmeri flowering --------------------------------------------------------#
+# Use individuals that were observed at least 3 times in year (and removing the
+# one indvidual observed in 2017)
+palmdat <- filter(ind_yr, spp == "A. palmeri", nobs > 2, yr > 2017)
 
 # Plotting mean first/last dates
-palm_fl <- summary_fl %>%
-  filter(spp == "A. palmeri", yr > 2017) %>%
+summary_palm_flf <- palmdat %>%
+  # Just individuals observed before open flower peak
+  filter(obs_first < 205) %>%
+  group_by(yr) %>%
+  summarize(nobs_firstdates = length(ind_id),
+            mn_flowers_first = round(mean(flowers_first, na.rm = TRUE)),
+            mn_open_first = round(mean(open_first, na.rm = TRUE)),
+            mn_open50_first = round(mean(open50_first, na.rm = TRUE))) %>%
+  data.frame()
+summary_palm_fll <- palmdat %>%
+  # Just individuals observed after open flower peak
+  filter(obs_last > 205) %>%
+  group_by(yr) %>%
+  summarize(nobs_lastdates = length(ind_id),
+            mn_flowers_last = round(mean(flowers_last, na.rm = TRUE)),
+            mn_open_last = round(mean(open_last, na.rm = TRUE)),
+            mn_open50_last = round(mean(open50_last, na.rm = TRUE))) %>%
+  data.frame()
+summary_palm_fl <- left_join(summary_palm_flf, summary_palm_fll, by = "yr") %>%
+  relocate(nobs_lastdates, .after = "nobs_firstdates") %>%
   pivot_longer(cols = mn_flowers_first:mn_open50_last, names_to = "event",
                values_to = "doy") %>%
   mutate(firstlast = ifelse(grepl("first", event), "Mean first date", "Mean last date"),
          type = ifelse(grepl("50", event), "open50", 
                        ifelse(grepl("flowers", event), "flowers", "open"))) %>%
   data.frame()
-ggplot(data = filter(palm_fl, !grepl("50", event)), 
+ggplot(data = summary_palm_fl, 
        aes(x = yr, y = doy, group = type, color = type)) +
   geom_point() + 
   geom_line(alpha = 0.2) +
   labs(x = "Year", y = "Day of year") +
   scale_color_discrete(name = "A. palmeri") +
   facet_grid(rows = vars(firstlast))
-
+  
 # Flower or bud phenophase: first date
-palm_fl_first <- lmer(flowers_first ~ I(yr - 2012) + (1 | ind_id),
-                      data = filter(ind_yr, spp == "A. palmeri")) 
-summary(palm_fl_first)
-  # Trend towards earlier start to flower phenophase
+  palm_fl_first <- lmer(flowers_first ~ I(yr - 2012) + (1 | ind_id), 
+                       data = filter(palmdat, obs_first < 205)) 
+  summary(palm_fl_first)
+  # Trending earlier
 
 # Open flower phenophase: first date
-palm_fo_first <- lmer(open_first ~ I(yr - 2012) + (1 | ind_id),
-                      data = filter(ind_yr, spp == "A. palmeri")) 
-summary(palm_fo_first)
-  # Trend towards earlier open flower phenophase
-
+  palm_fo_first <- lmer(open_first ~ I(yr - 2012) + (1 | ind_id), 
+                       data = filter(palmdat, obs_first < 205)) 
+  summary(palm_fo_first)
+  # Some evidence of trend earlier (smaller effect)
+  
 # Flower or bud phenophase: last date
-palm_fl_last <- lmer(flowers_last ~ I(yr - 2012) + (1 | ind_id),
-                     data = filter(ind_yr, spp == "A. palmeri")) 
-summary(palm_fl_last)
-  # Slight trend towards earlier end to flower phenophase
-
+  palm_fl_last <- lmer(flowers_last ~ I(yr - 2012) + (1 | ind_id),
+                      data = filter(palmdat, obs_last > 205, yr < 2023)) 
+  summary(palm_fl_last)
+  # Evidence of trend for later dates
+  
 # Open flower phenophase: last date
-palm_fo_last <- lmer(open_last ~ I(yr - 2012) + (1 | ind_id),
-                     data = filter(ind_yr, spp == "A. palmeri")) 
-summary(palm_fo_last)
-  # No trend in end to open flower phenophase
-
-# Plot predictions for flower phenophase
+  palm_fo_last <- lmer(open_last ~ I(yr - 2012) + (1 | ind_id),
+                      data = filter(palmdat, obs_last > 205, yr < 2023)) 
+  summary(palm_fo_last)
+  # Some evidence of trend for later dates
+  
+# Predictions: flowers or buds
   newdat_first <- data.frame(yr = seq(2018, 2023, length = 100), ind_id = 0)
   palm_flf_preds <- predictInterval(merMod = palm_fl_first, 
                                    newdata = newdat_first,
@@ -376,6 +371,24 @@ summary(palm_fo_last)
     mutate(Date = "Last")
   palm_fl_preds <- rbind(palm_flf_preds, palm_fll_preds)
   
+  # Predictions: open flowers
+  palm_fof_preds <- predictInterval(merMod = palm_fo_first, 
+                                   newdata = newdat_first,
+                                   level = 0.95, n.sims = 1000,
+                                   stat = "mean", type = "linear.prediction",
+                                   include.resid.var = FALSE)
+  palm_fol_preds <- predictInterval(merMod = palm_fo_last, 
+                                   newdata = newdat_last,
+                                   level = 0.95, n.sims = 1000,
+                                   stat = "mean", type = "linear.prediction",
+                                   include.resid.var = FALSE)
+  palm_fof_preds <- cbind(palm_fof_preds, yr = newdat_first$yr) %>%
+    mutate(Date = "First")
+  palm_fol_preds <- cbind(palm_fol_preds, yr = newdat_last$yr) %>%
+    mutate(Date = "Last")
+  palm_fo_preds <- rbind(palm_fof_preds, palm_fol_preds)
+  
+# Plot predictions
   palm_fl_plot <- ggplot(palm_fl_preds, aes(x = yr)) +
     geom_ribbon(aes(x = yr, ymin = lwr, ymax = upr, group = Date, fill = Date), 
                 alpha = 0.3, linetype = 0) +
@@ -385,45 +398,80 @@ summary(palm_fo_last)
     scale_color_manual(values = c("forest green", "blue")) +
     scale_fill_manual(values = c("forest green", "blue")) +
     theme_bw() +
-    annotate("text", x = 2023, y = 252, label = "A. palmeri, flowers or buds", 
-             hjust = 1, vjust = 1, fontface = 2)
-  palm_fl_plot
+    annotate("text", x = 2018, y = 250, label = "A. palmeri, flowers or buds", 
+             hjust = 0, vjust = 1, fontface = 2)
+  palm_fo_plot <- ggplot(palm_fo_preds, aes(x = yr)) +
+    geom_ribbon(aes(x = yr, ymin = lwr, ymax = upr, group = Date, fill = Date), 
+                alpha = 0.3, linetype = 0) +
+    geom_line(aes(x = yr, y = fit, group = Date, color = Date)) +
+    labs(x = "Year", y = "Mean day of year") +
+    theme(text = element_text(size = 10)) +
+    scale_color_manual(values = c("forest green", "blue")) +
+    scale_fill_manual(values = c("forest green", "blue")) +
+    theme_bw() +
+    annotate("text", x = 2018, y = 245, label = "A. palmeri, open flowers", 
+             hjust = 0, vjust = 1, fontface = 2)
+  plot_grid(palm_fl_plot, palm_fo_plot, ncol = 1)
 
-# Plot predictions for open flower phenophase
-  palm_fof_preds <- predictInterval(merMod = palm_fo_first, 
-                                    newdata = newdat_first,
-                                    level = 0.95, n.sims = 1000,
-                                    stat = "mean", type = "linear.prediction",
-                                    include.resid.var = FALSE)
-  palm_fol_preds <- predictInterval(merMod = palm_fo_last, 
-                                    newdata = newdat_last,
-                                    level = 0.95, n.sims = 1000,
-                                    stat = "mean", type = "linear.prediction",
-                                    include.resid.var = FALSE)
-  palm_fof_preds <- cbind(palm_fof_preds, yr = newdat_first$yr) %>%
-    mutate(Date = "First")
-  palm_fol_preds <- cbind(palm_fol_preds, yr = newdat_last$yr) %>%
-    mutate(Date = "Last")
-  palm_fo_preds <- rbind(palm_fof_preds, palm_fol_preds)
-
-palm_fo_plot <- ggplot(palm_fo_preds, aes(x = yr)) +
-  geom_ribbon(aes(x = yr, ymin = lwr, ymax = upr, group = Date, fill = Date), 
-              alpha = 0.3, linetype = 0) +
-  geom_line(aes(x = yr, y = fit, group = Date, color = Date)) +
-  labs(x = "Year", y = "Mean day of year") +
-  theme(text = element_text(size = 10)) +
-  scale_color_manual(values = c("forest green", "blue")) +
-  scale_fill_manual(values = c("forest green", "blue")) +
-  theme_bw() +
-  annotate("text", x = 2023, y = 252, label = "A. palmeri, open flowers", 
-           hjust = 1, vjust = 1, fontface = 2)
-palm_fo_plot
-
-plot_grid(palm_fl_plot, palm_fo_plot, ncol = 1)
-
-
+# Flowering intensity: 50-74% of flowers open 
+# (using first date)
+  palm_fo50_first <- lmer(open50_first ~ I(yr - 2012) + (1 | ind_id), 
+                         data = palmdat) 
+  summary(palm_fo50_first)
+  # Some evidence that peak has been occurring later in recent years
+  # Positive slope (1.95), but with huge uncertainty (SE = 0.66)
+  
+  # Annual and overall estimates
+  palm_fo50_yr <- lm(open50_first ~ factor(yr), data = palmdat)
+  summary(palm_fo50_yr)
+  palm_fo50_1 <- lm(open50_first ~ 1, data = palmdat)
+  summary(palm_fo50_1)
+  confint(palm_fo50_1)
+  # Overall mean DOY = 210 (SE = 1.3; 95% CI = 208-213)
+  AIC(palm_fo50_yr); AIC(palm_fo50_1) # Model with year better.
+  # 2018-2019 lower than all the rest
+  
 #------------------------------------------------------------------------------#
 # Could use predicted start/end/peak dates from GAMs in trend analyses...
 #------------------------------------------------------------------------------#
-# Samples sizes would be very small (5-12)
+gam_ests <- read.csv("output/gams/estimates-annual.csv")
+ests_sag <- filter(gam_ests, taxa == "C. gigantea")
+ests_palm <- filter(gam_ests, taxa == "A. palmeri")
 
+# Saguaros: flowers
+summary(m_sag_flf <- lm(start ~ I(yr - 2012), 
+                        data = filter(ests_sag, phase == "flowers")))
+summary(m_sag_flp <- lm(peak ~ I(yr - 2012), 
+                        data = filter(ests_sag, phase == "flowers")))
+summary(m_sag_fle <- lm(end ~ I(yr - 2012), 
+                        data = filter(ests_sag, phase == "flowers")))
+# No evidence that start/end change, but some evidence that peak is earlier
+# (beta = -7.6, P = 0.12)
+
+# Saguaros: open flowers
+summary(m_sag_flf <- lm(start ~ I(yr - 2012), 
+                        data = filter(ests_sag, phase == "flowers_open")))
+summary(m_sag_flp <- lm(peak ~ I(yr - 2012), 
+                        data = filter(ests_sag, phase == "flowers_open")))
+summary(m_sag_fle <- lm(end ~ I(yr - 2012), 
+                        data = filter(ests_sag, phase == "flowers_open")))
+# No evidence of any changes
+
+# A. palmeri: flowers
+summary(m_palm_flf <- lm(start ~ I(yr - 2012), 
+                        data = filter(ests_palm, phase == "flowers")))
+summary(m_palm_flp <- lm(peak ~ I(yr - 2012), 
+                        data = filter(ests_palm, phase == "flowers")))
+summary(m_palm_fle <- lm(end ~ I(yr - 2012), 
+                        data = filter(ests_palm, phase == "flowers")))
+# No evidence of changes
+
+# A. palmeri: open flowers
+summary(m_palm_flf <- lm(start ~ I(yr - 2012), 
+                        data = filter(ests_palm, phase == "flowers_open")))
+summary(m_palm_flp <- lm(peak ~ I(yr - 2012), 
+                        data = filter(ests_palm, phase == "flowers_open")))
+summary(m_palm_fle <- lm(end ~ I(yr - 2012), 
+                        data = filter(ests_palm, phase == "flowers_open")))
+# No evidence that start/peak change, but some evidence that open flowers phase
+# is ending later (beta = 6.4, P = 0.11)
