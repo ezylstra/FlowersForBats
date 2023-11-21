@@ -444,15 +444,69 @@ ests_annual <- ests %>%
   select(!contains("ucl"))
 ests_annual
 # Save to file
-write.csv(ests_annual, 
-          paste0("output/gams/estimates-annual.csv"),
-          row.names = FALSE)
+# write.csv(ests_annual, 
+#           paste0("output/gams/estimates-annual.csv"),
+#           row.names = FALSE)
 
 ests_allyrs <- ests %>%
   filter(grepl("-", yr))
 ests_allyrs
 # Save to file
-write.csv(ests_allyrs, 
-          paste0("output/gams/estimates-allyrs.csv"),
-          row.names = FALSE)
+# write.csv(ests_allyrs, 
+#           paste0("output/gams/estimates-allyrs.csv"),
+#           row.names = FALSE)
+
+#------------------------------------------------------------------------------#
+# Create figures with estimates
+#------------------------------------------------------------------------------#
+ests_allyrs <- read.csv("output/gams/estimates-allyrs.csv") 
+
+e1 <- ests_allyrs %>%
+  dplyr::select(!contains("ucl")) %>%
+  dplyr::select(!contains("lcl")) %>%
+  # pivot_longer(cols = start:end,
+  #              names_to = "Date",
+  #              values_to = "doy") %>%
+  mutate(taxa = factor(taxa, levels = c("A. parryi", "A. palmeri", 
+                                        "A. chrysanthus", "Agave spp.", 
+                                        "C. gigantea")),
+         taxa_num = as.numeric(taxa),
+         taxa2 = factor(taxa, levels = c("C. gigantea", "Agave spp.",
+                                        "A. chrysanthus", "A. palmeri", 
+                                        "A. parryi")),
+         taxa_num2 = as.numeric(taxa2),
+         phase = factor(phase, levels = c("flowers", "flowers_open")),
+         phase_num = as.numeric(phase),
+         phase2 = factor(phase, levels = c("flowers_open", "flowers")),
+         phase_num2 = as.numeric(phase2)) %>%
+  data.frame()
+
+cap <- 0.05
+
+ggplot(e1) +
+  geom_segment(aes(x = start, xend = end, y = taxa, yend = taxa)) +
+  geom_segment(aes(x = start, xend = start, 
+                   y = taxa_num - cap, yend = taxa_num + cap)) +
+  geom_segment(aes(x = peak, xend = peak, 
+                   y = taxa_num - cap, yend = taxa_num + cap)) +
+  geom_segment(aes(x = end, xend = end, 
+                   y = taxa_num - cap, yend = taxa_num + cap)) +
+  facet_grid(rows = "phase") +
+  labs(x = "Day of year", y = "")
+
+ggplot(e1) +
+  geom_segment(aes(x = start, xend = end, y = phase2, yend = phase2, 
+                   group = phase2, color = phase2)) +
+  geom_segment(aes(x = start, xend = start, 
+                   y = phase_num2 - cap, yend = phase_num2 + cap,
+                   group = phase2, color = phase2)) +
+  geom_segment(aes(x = peak, xend = peak, 
+                   y = phase_num2 - cap, yend = phase_num2 + cap,
+                   group = phase2, color = phase2)) +
+  geom_segment(aes(x = end, xend = end, 
+                   y = phase_num2 - cap, yend = phase_num2 + cap,
+                   group = phase2, color = phase2)) +
+  facet_grid(rows = "taxa2") +
+  labs(x = "Day of year", y = "") + 
+  theme(legend.position = "none")
   
