@@ -469,14 +469,12 @@ for (thresh in thresholds) {
 #------------------------------------------------------------------------------#
 # Create figures with estimates
 #------------------------------------------------------------------------------#
-ests_allyrs <- read.csv("output/gams/estimates-allyrs.csv") 
+ests_allyrs_10 <- read.csv("output/gams/estimates-allyrs-thresh10.csv")
+ests_allyrs_25 <- read.csv("output/gams/estimates-allyrs-thresh25.csv")
 
-e1 <- ests_allyrs %>%
+e1_10 <- ests_allyrs_10 %>%
   dplyr::select(!contains("ucl")) %>%
   dplyr::select(!contains("lcl")) %>%
-  # pivot_longer(cols = start:end,
-  #              names_to = "Date",
-  #              values_to = "doy") %>%
   mutate(taxa = factor(taxa, levels = c("A. parryi", "A. palmeri", 
                                         "A. chrysanthus", "Agave spp.", 
                                         "C. gigantea")),
@@ -488,23 +486,52 @@ e1 <- ests_allyrs %>%
          phase = factor(phase, levels = c("flowers", "flowers_open")),
          phase_num = as.numeric(phase),
          phase2 = factor(phase, levels = c("flowers_open", "flowers")),
-         phase_num2 = as.numeric(phase2)) %>%
+         phase_num2 = as.numeric(phase2),
+         threshold = "0.10") %>%
   data.frame()
+
+e1_25 <- ests_allyrs_25 %>%
+  dplyr::select(!contains("ucl")) %>%
+  dplyr::select(!contains("lcl")) %>%
+  mutate(taxa = factor(taxa, levels = c("A. parryi", "A. palmeri", 
+                                        "A. chrysanthus", "Agave spp.", 
+                                        "C. gigantea")),
+         taxa_num = as.numeric(taxa),
+         taxa2 = factor(taxa, levels = c("C. gigantea", "Agave spp.",
+                                         "A. chrysanthus", "A. palmeri", 
+                                         "A. parryi")),
+         taxa_num2 = as.numeric(taxa2),
+         phase = factor(phase, levels = c("flowers", "flowers_open")),
+         phase_num = as.numeric(phase),
+         phase2 = factor(phase, levels = c("flowers_open", "flowers")),
+         phase_num2 = as.numeric(phase2),
+         threshold = "0.25") %>%
+  data.frame()
+e1 <- rbind(e1_10, e1_25)
 
 cap <- 0.05
 
-ggplot(e1) +
-  geom_segment(aes(x = start, xend = end, y = taxa, yend = taxa)) +
+# Not great, but it works for now...
+startends <- ggplot(e1) +
+  geom_segment(aes(x = start, xend = end, y = taxa, yend = taxa, 
+                   group = threshold, color = threshold)) +
   geom_segment(aes(x = start, xend = start, 
-                   y = taxa_num - cap, yend = taxa_num + cap)) +
+                   y = taxa_num - cap, yend = taxa_num + cap, 
+                   group = threshold, color = threshold)) +
   geom_segment(aes(x = peak, xend = peak, 
-                   y = taxa_num - cap, yend = taxa_num + cap)) +
+                   y = taxa_num - cap, yend = taxa_num + cap, 
+                   group = threshold, color = threshold)) +
   geom_segment(aes(x = end, xend = end, 
-                   y = taxa_num - cap, yend = taxa_num + cap)) +
+                   y = taxa_num - cap, yend = taxa_num + cap, 
+                   group = threshold, color = threshold)) +
+  scale_color_manual(values = c("gray40", "black")) +
   facet_grid(rows = "phase") +
-  labs(x = "Day of year", y = "")
+  theme_bw() +
+  labs(x = "Day of year", y = "", color = "Proportion")
+# ggsave("output/gams/all-years/flower-start-ends.png", startends, device = "png", 
+#        width = 6.5, height = 3, units = "in", dpi = 300)
 
-ggplot(e1) +
+ggplot(filter(e1, threshold == "0.10")) +
   geom_segment(aes(x = start, xend = end, y = phase2, yend = phase2, 
                    group = phase2, color = phase2)) +
   geom_segment(aes(x = start, xend = start, 
