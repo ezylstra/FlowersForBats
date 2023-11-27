@@ -81,6 +81,14 @@ ind_yr <- dat %>%
                                max(doy[which(flowers_open == 1)]), NA),
             open50_last = ifelse(sum(i_flowers_open == "4: 50-74%", na.rm = TRUE) > 0,
                                  max(doy[which(i_flowers_open == "4: 50-74%")]), NA),
+            fruit_first = ifelse(sum(fruit, na.rm = TRUE) > 0,
+                                 min(doy[which(fruit == 1)]), NA),
+            ripe_first = ifelse(sum(fruit_ripe, na.rm = TRUE) > 0,
+                                min(doy[which(fruit_ripe == 1)]), NA),            
+            fruit_last = ifelse(sum(fruit, na.rm = TRUE) > 0,
+                                max(doy[which(fruit == 1)]), NA),
+            ripe_last = ifelse(sum(fruit_ripe, na.rm = TRUE) > 0,
+                               max(doy[which(fruit_ripe == 1)]), NA),            
             .groups = "keep") %>%
   data.frame()
 
@@ -146,7 +154,7 @@ hist(ind_yr$nobs, breaks = 50, xlab = "Number of observations",
   # A. palmeri average first/last date with > 10% individuals = 169/269 
   # A. palmeri average date with highest proportion of individuals = 205
 
-###############################################################################
+################################################################################
   
 # Saguaro flowering -----------------------------------------------------------#
 # Use individuals that were observed at least 3 times in year
@@ -277,9 +285,9 @@ ggplot(data = summary_sag_fl,
     theme(text = element_text(size = 10),
           legend.text = element_text(size = 8))
   sag_trends <- plot_grid(sag_fl_plot, sag_fo_plot, ncol = 1)
-  ggsave("output/trends/SAGU-flowers.png",
-         sag_trends, device = "png", width = 6.5, height = 5, 
-         units = "in", dpi = 300)
+  # ggsave("output/trends/SAGU-flowers.png",
+  #        sag_trends, device = "png", width = 6.5, height = 5, 
+  #        units = "in", dpi = 300)
 
 # Flowering intensity: 50-74% of flowers open 
 # (using first date since last dates are often the same or very similar)
@@ -449,8 +457,28 @@ ggplot(data = summary_palm_fl,
     theme(text = element_text(size = 10),
           legend.text = element_text(size = 8))
   palm_trends <- plot_grid(palm_fl_plot, palm_fo_plot, ncol = 1)
-  ggsave("output/trends/PALM-flowers.png",
-          palm_trends, device = "png", width = 6.5, height = 5, 
+  # ggsave("output/trends/PALM-flowers.png",
+  #         palm_trends, device = "png", width = 6.5, height = 5, 
+  #        units = "in", dpi = 300)
+  
+  # Plot all together
+  palm_fl_preds <- palm_fl_preds %>% mutate(phase = "flowers")
+  palm_fo_preds <- palm_fo_preds %>% mutate(phase = "flowers_open")
+  palm_all <- do.call("rbind", list(palm_fl_preds, palm_fo_preds))
+  
+  palm_trends_all <- ggplot(palm_all, aes(x = yr)) +
+    geom_ribbon(aes(x = yr, ymin = lwr, ymax = upr, group = Date, fill = Date), 
+                alpha = 0.3, linetype = 0) +
+    geom_line(aes(x = yr, y = fit, group = Date, color = Date)) +
+    labs(x = "Year", y = "Mean day of year") +
+    scale_color_manual(values = c("forest green", "salmon3")) +
+    scale_fill_manual(values = c("forest green", "salmon3")) +
+    theme_bw() +
+    theme(text = element_text(size = 10),
+          legend.text = element_text(size = 8)) + 
+    facet_grid(rows = vars(phase))
+  ggsave("output/trends/PALM-flowerfruit.png",
+         palm_trends_all, device = "png", width = 6.5, height = 4.5,
          units = "in", dpi = 300)
 
 # Flowering intensity: 50-74% of flowers open 
@@ -491,10 +519,162 @@ ggplot(data = summary_palm_fl,
     data.frame()
   # write.table(palm50, "clipboard", sep = "\t", row.names = FALSE)
 
+# Saguaro fruiting ------------------------------------------------------------#
+  # Plotting mean first/last dates
+  summary_sag_frf <- sagdat %>%
+    # Just individuals observed before open flower peak
+    filter(obs_first < 135) %>%
+    group_by(yr) %>%
+    summarize(nobs_firstdates = length(ind_id),
+              mn_fruit_first = round(mean(fruit_first, na.rm = TRUE)),
+              mn_ripe_first = round(mean(ripe_first, na.rm = TRUE))) %>%
+    data.frame()
+  summary_sag_frl <- sagdat %>%
+    # Just individuals observed after open flower peak
+    filter(obs_last > 135) %>%
+    group_by(yr) %>%
+    summarize(nobs_lastdates = length(ind_id),
+              mn_fruit_last = round(mean(fruit_last, na.rm = TRUE)),
+              mn_ripe_last = round(mean(ripe_last, na.rm = TRUE))) %>%
+    data.frame()
+  summary_sag_fr <- left_join(summary_sag_frf, summary_sag_frl, by = "yr") %>%
+    relocate(nobs_lastdates, .after = "nobs_firstdates") %>%
+    pivot_longer(cols = mn_fruit_first:mn_ripe_last, names_to = "event",
+                 values_to = "doy") %>%
+    mutate(firstlast = ifelse(grepl("first", event), "Mean first date", "Mean last date"),
+           type = ifelse(grepl("fruit", event), "fruit", "ripe")) %>%
+    data.frame()
+  ggplot(data = summary_sag_fr, 
+         aes(x = yr, y = doy, group = type, color = type)) +
+    geom_point() + 
+    geom_line(alpha = 0.2) +
+    labs(x = "Year", y = "Day of year") +
+    scale_color_discrete(name = "C. gigantea") +
+    facet_grid(rows = vars(firstlast))
+  
+  # Fruit phenophase: first date
+  sag_fr_first <- lmer(fruit_first ~ I(yr - 2012) + (1 | ind_id), 
+                       data = filter(sagdat, obs_first < 135)) 
+  summary(sag_fr_first)
+  confint(sag_fr_first)
+  # No evidence of trend
+  
+  # Ripe fruit phenophase: first date
+  sag_ri_first <- lmer(ripe_first ~ I(yr - 2012) + (1 | ind_id), 
+                       data = filter(sagdat, obs_first < 135)) 
+  summary(sag_ri_first)
+  confint(sag_ri_first)
+  # No evidence of trend
+  
+  # Fruit: last date
+  sag_fr_last <- lmer(fruit_last ~ I(yr - 2012) + (1 | ind_id),
+                      data = filter(sagdat, obs_last > 135, yr < 2023)) 
+  summary(sag_fr_last)
+  confint(sag_fr_last)
+  # Some evidence of trend earlier
+  
+  # Ripe fruit phenophase: last date
+  sag_ri_last <- lmer(ripe_last ~ I(yr - 2012) + (1 | ind_id),
+                      data = filter(sagdat, obs_last > 135, yr < 2023)) 
+  summary(sag_ri_last)
+  confint(sag_ri_last)
+  # Weak evidence of trend earlier
+  
+  # Predictions: fruit
+  newdat_first <- data.frame(yr = seq(2012, 2023, length = 100), ind_id = 0)
+  sag_frf_preds <- predictInterval(merMod = sag_fr_first, 
+                                   newdata = newdat_first,
+                                   level = 0.95, n.sims = 1000,
+                                   stat = "mean", type = "linear.prediction",
+                                   include.resid.var = FALSE)
+  newdat_last <- data.frame(yr = seq(2012, 2022, length = 80), ind_id = 0)
+  sag_frl_preds <- predictInterval(merMod = sag_fr_last, 
+                                   newdata = newdat_last,
+                                   level = 0.95, n.sims = 1000,
+                                   stat = "mean", type = "linear.prediction",
+                                   include.resid.var = FALSE)
+  sag_frf_preds <- cbind(sag_frf_preds, yr = newdat_first$yr) %>%
+    mutate(Date = "First")
+  sag_frl_preds <- cbind(sag_frl_preds, yr = newdat_last$yr) %>%
+    mutate(Date = "Last")
+  sag_fr_preds <- rbind(sag_frf_preds, sag_frl_preds)
+  
+  # Predictions: ripe fruit
+  sag_rif_preds <- predictInterval(merMod = sag_ri_first, 
+                                   newdata = newdat_first,
+                                   level = 0.95, n.sims = 1000,
+                                   stat = "mean", type = "linear.prediction",
+                                   include.resid.var = FALSE)
+  sag_ril_preds <- predictInterval(merMod = sag_ri_last, 
+                                   newdata = newdat_last,
+                                   level = 0.95, n.sims = 1000,
+                                   stat = "mean", type = "linear.prediction",
+                                   include.resid.var = FALSE)
+  sag_rif_preds <- cbind(sag_rif_preds, yr = newdat_first$yr) %>%
+    mutate(Date = "First")
+  sag_ril_preds <- cbind(sag_ril_preds, yr = newdat_last$yr) %>%
+    mutate(Date = "Last")
+  sag_ri_preds <- rbind(sag_rif_preds, sag_ril_preds)
+  
+  # Plot predictions
+  sag_fr_plot <- ggplot(sag_fr_preds, aes(x = yr)) +
+    geom_ribbon(aes(x = yr, ymin = lwr, ymax = upr, group = Date, fill = Date), 
+                alpha = 0.3, linetype = 0) +
+    geom_line(aes(x = yr, y = fit, group = Date, color = Date)) +
+    labs(x = "Year", y = "Mean day of year") +
+    scale_color_manual(values = c("forest green", "blue")) +
+    scale_fill_manual(values = c("forest green", "blue")) +
+    theme_bw() +
+    annotate("text", x = 2023, y = 250, label = "C. gigantea, fruit", 
+             hjust = 1, vjust = 1, fontface = 2, size = 3) +
+    theme(text = element_text(size = 10),
+          legend.text = element_text(size = 8))
+  sag_ri_plot <- ggplot(sag_ri_preds, aes(x = yr)) +
+    geom_ribbon(aes(x = yr, ymin = lwr, ymax = upr, group = Date, fill = Date), 
+                alpha = 0.3, linetype = 0) +
+    geom_line(aes(x = yr, y = fit, group = Date, color = Date)) +
+    labs(x = "Year", y = "Mean day of year") +
+    scale_color_manual(values = c("forest green", "blue")) +
+    scale_fill_manual(values = c("forest green", "blue")) +
+    theme_bw() +
+    annotate("text", x = 2023, y = 225, label = "C. gigantea, ripe fruit", 
+             hjust = 1, vjust = 1, fontface = 2, size = 3) +
+    theme(text = element_text(size = 10),
+          legend.text = element_text(size = 8))
+  sag_trends_fruit <- plot_grid(sag_fr_plot, sag_ri_plot, ncol = 1)
+  # ggsave("output/trends/SAGU-fruit.png",
+  #        sag_trends_fruit, device = "png", width = 6.5, height = 5, 
+  #        units = "in", dpi = 300)
+
+#------------------------------------------------------------------------------#
+# Plot all trends together for C. gigantea?
+#------------------------------------------------------------------------------#
+
+sag_fl_preds <- sag_fl_preds %>% mutate(phase = "flowers")
+sag_fo_preds <- sag_fo_preds %>% mutate(phase = "flowers_open")
+sag_fr_preds <- sag_fr_preds %>% mutate(phase = "fruit")
+sag_ri_preds <- sag_ri_preds %>% mutate(phase = "fruit_ripe")
+sag_all <- do.call("rbind", list(sag_fl_preds, sag_fo_preds, sag_fr_preds, sag_ri_preds))
+
+sag_trends_all <- ggplot(sag_all, aes(x = yr)) +
+  geom_ribbon(aes(x = yr, ymin = lwr, ymax = upr, group = Date, fill = Date), 
+              alpha = 0.3, linetype = 0) +
+  geom_line(aes(x = yr, y = fit, group = Date, color = Date)) +
+  labs(x = "Year", y = "Mean day of year") +
+  scale_color_manual(values = c("forest green", "salmon3")) +
+  scale_fill_manual(values = c("forest green", "salmon3")) +
+  theme_bw() +
+  theme(text = element_text(size = 10),
+        legend.text = element_text(size = 8)) + 
+  facet_grid(rows = vars(phase))
+# ggsave("output/trends/SAGU-flowerfruit.png",
+#        sag_trends_all, device = "png", width = 6.5, height = 8,
+#        units = "in", dpi = 300)
+  
 #------------------------------------------------------------------------------#
 # Could use predicted start/end/peak dates from GAMs in trend analyses...
 #------------------------------------------------------------------------------#
-gam_ests <- read.csv("output/gams/estimates-annual.csv")
+gam_ests <- read.csv("output/gams/estimates-annual-thresh10.csv")
 ests_sag <- filter(gam_ests, taxa == "C. gigantea")
 ests_palm <- filter(gam_ests, taxa == "A. palmeri")
 
@@ -535,3 +715,25 @@ m_palm_foe <- lm(end ~ I(yr - 2012), data = filter(ests_palm, phase == "flowers_
 summary(m_palm_foe); confint(m_palm_foe)
 # No evidence that start/peak change, but some evidence that open flowers phase
 # is ending later (beta = 6.4, P = 0.11)
+
+gam_ests_fr <- read.csv("output/gams/estimates-fruit-annual-thresh10.csv")
+ests_sag_fr <- filter(gam_ests_fr, taxa == "C. gigantea")
+
+# Saguaros: fruit
+m_sag_frf <- lm(start ~ I(yr - 2012), data = filter(ests_sag_fr, phase == "fruit"))
+summary(m_sag_frf); confint(m_sag_frf)
+m_sag_frp <- lm(peak ~ I(yr - 2012), data = filter(ests_sag_fr, phase == "fruit"))
+summary(m_sag_frp); confint(m_sag_frp)
+m_sag_fre <- lm(end ~ I(yr - 2012), data = filter(ests_sag_fr, phase == "fruit"))
+summary(m_sag_fre); confint(m_sag_fre)
+# No evidence that start/peak change, but some evidence that end is earlier
+# (beta = -7.6, P = 0.12)
+
+# Saguaros: ripe fruit
+m_sag_rif <- lm(start ~ I(yr - 2012), data = filter(ests_sag_fr, phase == "fruit_ripe"))
+summary(m_sag_rif); confint(m_sag_rif)
+m_sag_rip <- lm(peak ~ I(yr - 2012), data = filter(ests_sag_fr, phase == "fruit_ripe"))
+summary(m_sag_rip); confint(m_sag_rip)
+m_sag_rie <- lm(end ~ I(yr - 2012), data = filter(ests_sag_fr, phase == "fruit_ripe"))
+summary(m_sag_rie); confint(m_sag_rie)
+# No evidence of any changes
