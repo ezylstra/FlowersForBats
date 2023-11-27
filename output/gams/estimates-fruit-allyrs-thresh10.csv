@@ -1,0 +1,5 @@
+"taxa","yr","phase","start","start_lcl","start_ucl","peak","peak_lcl","peak_ucl","end","end_lcl","end_ucl"
+"A. palmeri","2018-2023","fruit",60,1,1,242,225,276,365,Inf,Inf
+"A. palmeri","2018-2023","fruit_ripe",59,1,1,297,280,314,365,Inf,Inf
+"C. gigantea","2012-2023","fruit",113,112,116,157,149,164,201,200,204
+"C. gigantea","2012-2023","fruit_ripe",147,146,149,170,165,176,196,194,198
