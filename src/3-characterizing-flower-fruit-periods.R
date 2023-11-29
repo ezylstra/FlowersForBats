@@ -496,14 +496,8 @@ prop_sppyr_fruit <- dat %>%
          fyear = factor(yr, levels = as.character(2012:2023))) %>% 
   data.frame()
 
-# Do we have enough data for all the species?
-filter(prop_sppyr_fruit, spp == "A. chrysanthus")
-filter(prop_sppyr_fruit, spp == "A. parryi")
-  # Most annual sample sizes for both these species are very small <5
-filter(prop_sppyr_fruit, spp == "A. palmeri")
-  # Looks ok except for 2017
-
-# Removing species/years for which there's not enough data
+# Bats don't eat agave fruit, but going to include A. palmeri just to see what
+# that looks like
 prop_sppyr_fruit <- prop_sppyr_fruit %>%
   filter(spp %in% c("A. palmeri", "C. gigantea")) %>%
   filter(!(spp == "A. palmeri" & yr == 2017)) 
