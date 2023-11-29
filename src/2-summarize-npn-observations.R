@@ -162,6 +162,7 @@ ind_yr %>%
             nobs_md = median(nobs),
             nobs_min = min(nobs),
             nobs_max = max(nobs),
+            ave_days_since_mn = mean(days_since_mn, na.rm = TRUE),
             n_oneobsperyr = sum(nobs == 1),
             n_multobsperyr = sum(nobs > 1),
             n_5obsperyr = sum(nobs > 4)) %>%
