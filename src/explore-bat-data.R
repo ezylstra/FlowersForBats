@@ -186,7 +186,7 @@ byb_locs <- read.csv("data/agfd/agfd-backyard-locations.csv",
 
   # Simplify fluid variable
   bybl <- bybl %>%
-    mutate(fluid = ifelse(fluid_drop %in% c("Drained", "Much lower",                                             "MuchLower"), 2, 
+    mutate(fluid = ifelse(fluid_drop %in% c("Drained", "Much lower", "MuchLower"), 2, 
                           ifelse(fluid_drop %in% c("A little lower", "LittleLower"),
                                  1, 0)))
   count(bybl, fluid_drop, fluid)
