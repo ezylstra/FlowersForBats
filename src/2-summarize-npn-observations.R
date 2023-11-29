@@ -227,6 +227,7 @@ plants <- indiv %>%
             elev_min = min(elev),
             elev_max = max(elev),
             elev_mn = round(mean(elev)),
+            nyrs_mn = mean(nyrs),
             .groups = "keep") %>%
   mutate(prop_patch = round(npatch / ninds, 2), .after = npatch) %>%
   data.frame()
@@ -313,3 +314,26 @@ spp_facet
 # ggsave("output/maps/allspp_facet.png",
 #        spp_facet, device = "png", width = 6.5, height = 5.5,
 #        units = "in", dpi = 300)
+
+# Where are most of the A. palmeri individuals?
+palms <- filter(indiv, spp == "A. palmeri") %>%
+  mutate(tucson = ifelse(lat > 32 & lat < 32.4 & lon > (-111.5) & lon < (-110.8), 1, 0),
+         rincons = ifelse(lat > 32.12 & lat < 32.4 & lon > (-110.65) & lon < (-110.5), 1, 0))
+count(palms, tucson, rincons)
+# 5 in Tucson Valley (in town)
+# 129 in the Rincons (along trails)
+# 158 elsewhere
+palms$rincons <- ifelse(palms$rincons == 1, 2, 0)
+palms$geog <- factor(palms$tucson + palms$rincons)
+ggplot() +
+  geom_spatraster(data = dem_crop) +
+  scale_fill_whitebox_c(palette = "soft") +
+  geom_spatvector(data = az, fill = NA) +
+  ylim(31.3, 32.7) +
+  xlim(-111.7, -109) +
+  geom_point(data = palms, aes(x = lon, y = lat, group = geog, color = geog)) +
+  theme_bw() +
+  labs(fill = "Elevation (m)", x = "", y = "") +
+  theme(legend.position = "bottom",
+        axis.title = element_blank(),
+        legend.box.spacing = unit(0.1, "pt"))
