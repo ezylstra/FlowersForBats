@@ -337,3 +337,13 @@ ggplot() +
   theme(legend.position = "bottom",
         axis.title = element_blank(),
         legend.box.spacing = unit(0.1, "pt"))
+
+palms %>%
+  group_by(geog) %>%
+  summarize(nyrs_mn = mean(nyrs),
+            nobs_mn = mean(nobs),
+            nobs_md = median(nobs)) %>%
+  data.frame()
+
+count(filter(palms, rincons == 2), nyrs, nobs)
+
