@@ -61,7 +61,7 @@ fruit_allyrs_25 <- read.csv("output/gams/estimates-fruit-allyrs-thresh25.csv")
 bats <- read.csv("data/bat-dates.csv") %>%
   mutate(group = ifelse(roost == "maternity", "maternity / C. gigantea", 
                         "transient / A. palmeri"),
-         yval = c(2, 3, 1, 3, 2, 1))
+         yval = c(3, 4, 1, 2, 3, 2, 1))
 
 # Plotting parameters
   # Length of segment caps in figure
@@ -70,7 +70,7 @@ bats <- read.csv("data/bat-dates.csv") %>%
 # Maternity roots in southwestern AZ
   ciga <- dfe %>%
     filter(taxa == "C. gigantea") %>%
-    mutate(yval = rep(7:4, each = 2))
+    mutate(yval = rep(8:5, each = 2))
   
   matern_title <- expression(paste(bold("A. "), "Southwestern Arizona (maternity roosts)"))
   matern <- ggplot(ciga) +
@@ -86,7 +86,7 @@ bats <- read.csv("data/bat-dates.csv") %>%
                      y = yval - cap, yend = yval + cap, 
                      group = threshold, color = threshold)) +
     scale_color_manual(values = c("gray60", "forestgreen")) + 
-    geom_hline(yintercept = 3.5, color = "gray", linetype = 2) +
+    geom_hline(yintercept = 4.5, color = "gray", linetype = 2) +
     annotate("rect", 
              xmin = bats$start[bats$roost == "maternity" & bats$yval == 1],
              xmax = bats$end[bats$roost == "maternity" & bats$yval == 1],
@@ -99,9 +99,13 @@ bats <- read.csv("data/bat-dates.csv") %>%
              xmin = bats$start[bats$roost == "maternity" & bats$yval == 3],
              xmax = bats$end[bats$roost == "maternity" & bats$yval == 3],
              ymin = 3 - cap, ymax = 3 + cap, fill = "black") +
-    annotate("text", x = 1, y = 7.25, hjust = 0, vjust = 1, label = "C. gigantea", 
+    annotate("rect", 
+             xmin = bats$start[bats$roost == "maternity" & bats$yval == 4],
+             xmax = bats$end[bats$roost == "maternity" & bats$yval == 4],
+             ymin = 4 - cap, ymax = 4 + cap, fill = "black") +
+    annotate("text", x = 1, y = 8.25, hjust = 0, vjust = 1, label = "C. gigantea", 
              size = 3, fontface = "italic") +
-    annotate("text", x = 1, y = 3.25, hjust = 0, vjust = 1, label = "Bat presence", 
+    annotate("text", x = 1, y = 4.25, hjust = 0, vjust = 1, label = "Bat presence", 
              size = 3) +
     annotate("text", x = 110, y = 0.8, label = "*", size = 10) +
     theme_bw() +
@@ -114,14 +118,14 @@ bats <- read.csv("data/bat-dates.csv") %>%
           legend.key.size = unit(0.5, "cm"),
           legend.spacing.y = unit(0.05, "cm"),
           plot.title = element_text(size = 10))  +
-    scale_y_continuous(limits = c(0.75, 7.25), breaks = 1:7, 
-                       labels = c("Walker", "BMGR", "SSA", "Ripe fruit", 
+    scale_y_continuous(limits = c(0.75, 8.25), breaks = 1:8, 
+                       labels = c("Walker", "ORPI", "BMGR", "SSA", "Ripe fruit", 
                                   "Fruit", "Open flowers", "Flowers")) +
     scale_x_continuous(limits = c(1, 365)) +
     labs(x = "Day of year", y = "", color = "Proportion") +
     ggtitle(matern_title)
   ggsave("output/maternity-roosts-overlap.png", matern, device = "png", 
-         width = 6.5, height = 3.2, units = "in", dpi = 300)
+         width = 6.5, height = 3.5, units = "in", dpi = 300)
   
 # Transient roots in southeastern AZ  
   agpa <- dfe %>%
