@@ -1,7 +1,7 @@
 # Create figures with estimates
 # Erin Zylstra
 # ezylstra@arizona.edu
-# 2023-11-28
+# 2023-11-29
 
 library(dplyr)
 library(lubridate)
@@ -58,10 +58,10 @@ fruit_allyrs_25 <- read.csv("output/gams/estimates-fruit-allyrs-thresh25.csv")
            group = paste0(roost, " / ", taxa))
   
 # Summaries of bat presence from various sources
-bats <- read.csv("data/bat-dates-literature.csv") %>%
+bats <- read.csv("data/bat-dates.csv") %>%
   mutate(group = ifelse(roost == "maternity", "maternity / C. gigantea", 
                         "transient / A. palmeri"),
-         yval = c(3, 2, 1, 2, 1))
+         yval = c(2, 3, 1, 3, 2, 1))
 
 # Plotting parameters
   # Length of segment caps in figure
@@ -107,25 +107,26 @@ bats <- read.csv("data/bat-dates-literature.csv") %>%
     theme_bw() +
     theme(panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(), 
-          legend.position = c(0.98, 0.98),
+          legend.position = c(0.98, 0.99),
           legend.justification = c(1, 1), 
           legend.text = element_text(size = 8),
           legend.title = element_text(size = 8),
           legend.key.size = unit(0.5, "cm"),
-          plot.title = element_text(size = 10)) +
+          legend.spacing.y = unit(0.05, "cm"),
+          plot.title = element_text(size = 10))  +
     scale_y_continuous(limits = c(0.75, 7.25), breaks = 1:7, 
-                       labels = c("Walker", "SSA", "BMGR", "Ripe fruit", 
+                       labels = c("Walker", "BMGR", "SSA", "Ripe fruit", 
                                   "Fruit", "Open flowers", "Flowers")) +
     scale_x_continuous(limits = c(1, 365)) +
     labs(x = "Day of year", y = "", color = "Proportion") +
     ggtitle(matern_title)
   ggsave("output/maternity-roosts-overlap.png", matern, device = "png", 
-         width = 6.5, height = 3.5, units = "in", dpi = 300)
+         width = 6.5, height = 3.2, units = "in", dpi = 300)
   
 # Transient roots in southeastern AZ  
   agpa <- dfe %>%
     filter(taxa == "A. palmeri") %>%
-    mutate(yval = rep(4:3, each = 2))
+    mutate(yval = rep(5:4, each = 2))
 
   transient_title <- expression(paste(bold("B. "), "Southeastern Arizona (transient roosts)"))
   transient <- ggplot(agpa) +
@@ -141,11 +142,11 @@ bats <- read.csv("data/bat-dates-literature.csv") %>%
                      y = yval - cap, yend = yval + cap, 
                      group = threshold, color = threshold)) +
     scale_color_manual(values = c("gray60", "forestgreen")) + 
-    geom_hline(yintercept = 2.5, color = "gray", linetype = 2) +
+    geom_hline(yintercept = 3.5, color = "gray", linetype = 2) +
     annotate("rect", 
-             xmin = bats$start[bats$roost == "transient" & bats$yval == 1],
-             xmax = bats$end_ext[bats$roost == "transient" & bats$yval == 1],
-             ymin = 1 - cap, ymax = 1 + cap, fill = "gray80") +
+             xmin = bats$start[bats$roost == "transient" & bats$yval == 3],
+             xmax = bats$end_ext[bats$roost == "transient" & bats$yval == 3],
+             ymin = 3 - cap, ymax = 3 + cap, fill = "gray80") +
     annotate("rect", 
              xmin = bats$start[bats$roost == "transient" & bats$yval == 2],
              xmax = bats$end_ext[bats$roost == "transient" & bats$yval == 2],
@@ -158,21 +159,27 @@ bats <- read.csv("data/bat-dates-literature.csv") %>%
              xmin = bats$start[bats$roost == "transient" & bats$yval == 2],
              xmax = bats$end[bats$roost == "transient" & bats$yval == 2],
              ymin = 2 - cap, ymax = 2 + cap, fill = "black") +
-    annotate("text", x = 1, y = 4.25, hjust = 0, vjust = 1, label = "A. palmeri", 
+    annotate("rect", 
+             xmin = bats$start[bats$roost == "transient" & bats$yval == 3],
+             xmax = bats$end[bats$roost == "transient" & bats$yval == 3],
+             ymin = 3 - cap, ymax = 3 + cap, fill = "black") +
+    annotate("text", x = 1, y = 5.25, hjust = 0, vjust = 1, label = "A. palmeri", 
              size = 3, fontface = "italic") +
-    annotate("text", x = 1, y = 2.25, hjust = 0, vjust = 1, label = "Bat presence", 
+    annotate("text", x = 1, y = 3.25, hjust = 0, vjust = 1, label = "Bat presence", 
              size = 3) +
     theme_bw() +
     theme(panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(), 
-          legend.position = c(0.98, 0.98),
+          legend.position = c(0.98, 0.99),
           legend.justification = c(1, 1), 
           legend.text = element_text(size = 8),
           legend.title = element_text(size = 8),
           legend.key.size = unit(0.5, "cm"),
+          legend.spacing.y = unit(0.05, "cm"),
           plot.title = element_text(size = 10)) +
-    scale_y_continuous(limits = c(0.75, 4.25), breaks = 1:4, 
-                       labels = c("Walker", "SSA", "Open flowers", "Flowers")) +
+    scale_y_continuous(limits = c(0.75, 5.25), breaks = 1:5, 
+                       labels = c("Feeders", "Walker", "SSA", 
+                                  "Open flowers", "Flowers")) +
     scale_x_continuous(limits = c(1, 365)) +
     labs(x = "Day of year", y = "", color = "Proportion") +
     ggtitle(transient_title)
