@@ -173,15 +173,26 @@ byb_locs <- read.csv("data/agfd/agfd-backyard-locations.csv",
                      crs = "+proj=utm +zone=12 +datum=WGS84 +units=m")
   bybl_locsll <- project(bybl_locsv, crs(dem))
   
-  ggplot() +
-    geom_spatvector(data = us.states, fill = NA) +    
-    # geom_spatraster(data = dem) +
-    ylim(31, 34) +
-    xlim(-114.5, -109) +
-    geom_spatvector(data = byb_locsll, col = "gray") +
+  az <- us[us$NAME_1 == "Arizona",]
+  
+  feeders <- ggplot() +
+    geom_spatraster(data = dem) +
+    scale_fill_whitebox_c(palette = "soft") +
+    geom_spatvector(data = az, fill = NA) +
+    ylim(31.3, 32.8) +
+    xlim(-111.7, -109) +
+    geom_spatvector(data = byb_locsll, col = "black") +
     geom_spatvector(data = bybl_locsll, col = "red") +
-    theme_bw()
-  # Lots in Tucson, but some also in Sierra Vista area. Wondering if the 
+    theme_bw() +
+    labs(fill = "Elevation (m)", x = "", y = "") +
+    theme(legend.position = "bottom",
+          axis.title = element_blank(),
+          legend.box.spacing = unit(0.1, "pt"))
+  feeders
+  # ggsave("output/maps/feeders.png",
+  #        feeders, device = "png", width = 6.5, height = 5.5,
+  #        units = "in", dpi = 300)
+  # # Lots in Tucson, but some also in Sierra Vista area. Wondering if the 
   # distribution of sites where Leptos were confirmed is due to ease of access...
 
   # Simplify fluid variable
