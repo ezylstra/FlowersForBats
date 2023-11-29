@@ -884,43 +884,6 @@ dfe <- rbind(fl_10, fl_25, fr_10, fr_25)
 
 cap <- 0.2
 
-# Plot onset, peak, end of flowering, fruiting for C. gigantea and A. palmeri
-fl_10 <- flowers_allyrs_10 %>%
-  dplyr::select(!contains("ucl")) %>%
-  dplyr::select(!contains("lcl")) %>%
-  filter(taxa %in% c("C. gigantea", "A. palmeri")) %>%
-  mutate(taxa = factor(taxa, levels = c("A. palmeri", "C. gigantea")),
-         taxa_num = as.numeric(taxa),
-         threshold = "0.10") %>%
-  data.frame()
-fl_25 <- flowers_allyrs_25 %>%
-  dplyr::select(!contains("ucl")) %>%
-  dplyr::select(!contains("lcl")) %>%
-  filter(taxa %in% c("C. gigantea", "A. palmeri")) %>%
-  mutate(taxa = factor(taxa, levels = c("A. palmeri", "C. gigantea")),
-         taxa_num = as.numeric(taxa),
-         threshold = "0.25") %>%
-  data.frame()
-fr_10 <- fruit_allyrs_10 %>%
-  dplyr::select(!contains("ucl")) %>%
-  dplyr::select(!contains("lcl")) %>%
-  mutate(taxa = factor(taxa, levels = c("A. palmeri", "C. gigantea")),
-         taxa_num = as.numeric(taxa),
-         threshold = "0.10") %>%
-  filter(taxa == "C. gigantea") %>%
-  data.frame()
-fr_25 <- fruit_allyrs_25 %>%
-  dplyr::select(!contains("ucl")) %>%
-  dplyr::select(!contains("lcl")) %>%
-  mutate(taxa = factor(taxa, levels = c("A. palmeri", "C. gigantea")),
-         taxa_num = as.numeric(taxa),
-         threshold = "0.25") %>%
-  filter(taxa == "C. gigantea") %>%
-  data.frame()
-dfe <- rbind(fl_10, fl_25, fr_10, fr_25)
-
-cap <- 0.2
-
 startends <- ggplot(dfe) +
   geom_segment(aes(x = start, xend = end, y = taxa_num, yend = taxa_num, 
                    group = threshold, color = threshold)) +
